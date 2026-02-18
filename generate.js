@@ -219,4 +219,4 @@ async function generateBrief(csvText, pdfBase64) {
   return { docxBuffer, markdownText };
 }
 
-module.exports = { generateBrief };
+module.exports = { generateBrief, parseInlineFormatting, parseMarkdownToDocxChildren };

@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:eval": "RUN_EVAL=1 vitest run tests/eval.test.js"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.77.0",
     "docx": "^9.5.3",
@@ -6,5 +11,9 @@
     "express": "^5.2.1",
     "multer": "^2.0.2",
     "pdf-parse": "^2.4.5"
+  },
+  "devDependencies": {
+    "supertest": "^7.2.2",
+    "vitest": "^4.0.18"
   }
 }

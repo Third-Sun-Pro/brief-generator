@@ -17,8 +17,8 @@ app.post(
   ]),
   async (req, res) => {
     try {
-      const csvFileObj = req.files["csv"] && req.files["csv"][0];
-      const pdfFileObj = req.files["pdf"] && req.files["pdf"][0];
+      const csvFileObj = req.files && req.files["csv"] && req.files["csv"][0];
+      const pdfFileObj = req.files && req.files["pdf"] && req.files["pdf"][0];
 
       if (!csvFileObj || !pdfFileObj) {
         return res
@@ -47,7 +47,11 @@ app.post(
   }
 );
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+module.exports = app;
+
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
+}
