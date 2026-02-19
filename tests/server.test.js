@@ -26,6 +26,15 @@ require.cache[generatePath] = {
   },
 };
 
+// Mock scrape.js so server.js doesn't need cheerio
+const scrapePath = require.resolve("../scrape");
+require.cache[scrapePath] = {
+  id: scrapePath,
+  filename: scrapePath,
+  loaded: true,
+  exports: { scrapeNavigation: vi.fn().mockResolvedValue(null) },
+};
+
 // Clear server.js from cache and load with mocked generate
 const serverPath = require.resolve("../server");
 delete require.cache[serverPath];

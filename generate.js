@@ -169,7 +169,7 @@ function validateCsv(csvText, label) {
 // ---------------------------------------------------------------------------
 // Shared: build the API request params from inputs
 // ---------------------------------------------------------------------------
-function buildRequestParams(csvTexts, pdfBase64s) {
+function buildRequestParams(csvTexts, pdfBase64s, siteContext) {
   const csvArr = Array.isArray(csvTexts) ? csvTexts : [csvTexts];
   const pdfArr = Array.isArray(pdfBase64s) ? pdfBase64s : [pdfBase64s];
 
@@ -205,25 +205,41 @@ function buildRequestParams(csvTexts, pdfBase64s) {
     ? csvBlock
     : `Here are the client discovery questionnaires (CSVs):\n\n${csvBlock}`;
 
+  // Static examples go first (with cache_control) so the prefix is cacheable.
+  // This avoids re-processing ~7,700 tokens of examples on every request.
+  const contentBlocks = [
+    {
+      type: "text",
+      text: `Here are example briefs to follow for tone, structure, and formatting:\n\n${examples}`,
+      cache_control: { type: "ephemeral" },
+    },
+    ...pdfBlocks,
+    { type: "text", text: csvText },
+  ];
+
+  if (siteContext) {
+    contentBlocks.push({ type: "text", text: siteContext });
+  }
+
+  contentBlocks.push({
+    type: "text",
+    text: "Using the contract(s) (PDF) and questionnaire(s) (CSV) provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — synthesize responses into patterns and themes rather than restating every answer. Use short, direct sentences. Bullet points should be one line each. Cut filler words and redundant phrasing. Match the length and density of the examples, not longer. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.",
+  });
+
   return {
     model: "claude-sonnet-4-6",
     max_tokens: 16000,
-    system: systemPrompt,
+    system: [
+      {
+        type: "text",
+        text: systemPrompt,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
     messages: [
       {
         role: "user",
-        content: [
-          ...pdfBlocks,
-          { type: "text", text: csvText },
-          {
-            type: "text",
-            text: `Here are example briefs to follow for tone, structure, and formatting:\n\n${examples}`,
-          },
-          {
-            type: "text",
-            text: "Using the contract(s) (PDF) and questionnaire(s) (CSV) provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — synthesize responses into patterns and themes rather than restating every answer. Use short, direct sentences. Bullet points should be one line each. Cut filler words and redundant phrasing. Match the length and density of the examples, not longer. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.",
-          },
-        ],
+        content: contentBlocks,
       },
     ],
   };
@@ -266,9 +282,9 @@ async function buildDocx(markdownText) {
 // ---------------------------------------------------------------------------
 // generateBrief — blocking, used by CLI (run.js) and tests
 // ---------------------------------------------------------------------------
-async function generateBrief(csvTexts, pdfBase64s) {
-  const client = new Anthropic();
-  const params = buildRequestParams(csvTexts, pdfBase64s);
+async function generateBrief(csvTexts, pdfBase64s, siteContext) {
+  const client = new Anthropic({ maxRetries: 5 });
+  const params = buildRequestParams(csvTexts, pdfBase64s, siteContext);
   const response = await client.messages.create(params);
   const markdownText = response.content[0].text;
   const clientName = extractClientName(markdownText);
@@ -279,9 +295,44 @@ async function generateBrief(csvTexts, pdfBase64s) {
 // ---------------------------------------------------------------------------
 // generateBriefStream — streaming, used by web server SSE endpoint
 // ---------------------------------------------------------------------------
-async function generateBriefStream(csvTexts, pdfBase64s, onChunk) {
-  const client = new Anthropic();
-  const params = buildRequestParams(csvTexts, pdfBase64s);
+async function generateBriefStream(csvTexts, pdfBase64s, siteContext, onChunk) {
+  const client = new Anthropic({ maxRetries: 5 });
+  const params = buildRequestParams(csvTexts, pdfBase64s, siteContext);
+  const stream = client.messages.stream(params);
+
+  stream.on("text", (delta) => {
+    onChunk(delta);
+  });
+
+  const finalMessage = await stream.finalMessage();
+  const markdownText = finalMessage.content[0].text;
+  const clientName = extractClientName(markdownText);
+  const docxBuffer = await buildDocx(markdownText);
+  return { docxBuffer, markdownText, clientName, params };
+}
+
+// ---------------------------------------------------------------------------
+// Build revision params: appends assistant + feedback turns to original params
+// ---------------------------------------------------------------------------
+function buildRevisionParams(originalParams, assistantMarkdown, feedback) {
+  return {
+    model: originalParams.model,
+    max_tokens: originalParams.max_tokens,
+    system: originalParams.system,
+    messages: [
+      ...originalParams.messages,
+      { role: "assistant", content: assistantMarkdown },
+      { role: "user", content: feedback },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// reviseBriefStream — streaming revision using multi-turn conversation
+// ---------------------------------------------------------------------------
+async function reviseBriefStream(originalParams, assistantMarkdown, feedback, onChunk) {
+  const client = new Anthropic({ maxRetries: 5 });
+  const params = buildRevisionParams(originalParams, assistantMarkdown, feedback);
   const stream = client.messages.stream(params);
 
   stream.on("text", (delta) => {
@@ -295,4 +346,4 @@ async function generateBriefStream(csvTexts, pdfBase64s, onChunk) {
   return { docxBuffer, markdownText, clientName };
 }
 
-module.exports = { generateBrief, generateBriefStream, extractClientName, validateCsv, parseInlineFormatting, parseMarkdownToDocxChildren };
+module.exports = { generateBrief, generateBriefStream, reviseBriefStream, buildRevisionParams, extractClientName, validateCsv, parseInlineFormatting, parseMarkdownToDocxChildren };

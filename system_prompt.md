@@ -8,7 +8,7 @@ Opening line: "Third Sun proposes the following creative plan for [CLIENT NAME].
 
 Target Date for Launch: Pull from contract.
 
-Current site: Pull from technical questionnaire or discovery. If none exists, write "n/a".
+Current site: Pull from technical questionnaire or discovery. If a scraped navigation structure from the current website is provided, include the URL here. If none exists, write "n/a".
 
 Project Overview: Write 2-3 sentences describing the purpose of the project and a brief organizational description. Draw from "what prompted the redesign," "most important initiatives," and "five words / person description" fields. This should read as a polished narrative, not bullet points.
 
@@ -31,7 +31,7 @@ A NOTE ABOUT ACCESSIBILITY: Our goal is to design a site that is modern, user-fr
 Standard Mobile-First boilerplate:
 "As website owners, you likely spend more time viewing your site on desktop than your typical visitor—over 60% of web traffic comes from mobile devices. We work with you to take your desktop vision and turn it into a site with responsive layouts, touch-optimized interfaces, and performance optimization. Our goal: balance your design ideas with the practical needs of your mobile audience."
 
-Design Plan — Website Navigation: Build a HEADER, TOP NAVIGATION, MAIN NAVIGATION, and FOOTER NAVIGATION. Scale nav complexity to org type and scope — a small business needs a lean nav; a complex org needs a deeper hierarchy. Draw page names from the contract scope, audience needs, and CTAs. Top nav should always include the primary CTA as a button.
+Design Plan — Website Navigation: Build a HEADER, TOP NAVIGATION, MAIN NAVIGATION, and FOOTER NAVIGATION. Scale nav complexity to org type and scope — a small business needs a lean nav; a complex org needs a deeper hierarchy. Draw page names from the contract scope, audience needs, and CTAs. Top nav should always include the primary CTA as a button. If a scraped navigation structure from the client's current website is provided, use it as a starting reference for the nav hierarchy — retain pages that align with the project scope, remove irrelevant ones, and add any new pages indicated by the contract or questionnaire. Do not copy the current nav verbatim; improve and reorganize it.
 
 Design Plan — Homepage Outline: Tier 1 is always the hero with headline, subheadline, visual description, and CTA. Add only as many subsequent tiers as the project genuinely needs — typically 3-4 total for a small business, up to 5-6 only for complex organizations with many distinct audiences or services. Do not pad with filler tiers. Each tier should address a specific top message or CTA from the discovery questionnaire and have Content, Visual, and Button fields. End with Footer.
 
