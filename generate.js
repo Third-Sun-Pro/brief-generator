@@ -146,11 +146,37 @@ function parseMarkdownToDocxChildren(markdown) {
 }
 
 // ---------------------------------------------------------------------------
+// CSV validation: basic structure check before sending to API
+// ---------------------------------------------------------------------------
+function validateCsv(csvText, label) {
+  const prefix = label ? `${label}: ` : "";
+
+  if (!csvText || !csvText.trim()) {
+    throw new Error(`${prefix}CSV file is empty.`);
+  }
+
+  const lines = csvText.trim().split(/\r?\n/).filter((l) => l.trim() !== "");
+
+  if (!lines[0].includes(",")) {
+    throw new Error(`${prefix}File does not appear to be a valid CSV (no commas found).`);
+  }
+
+  if (lines.length < 2) {
+    throw new Error(`${prefix}CSV has no data rows (only a header was found).`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Shared: build the API request params from inputs
 // ---------------------------------------------------------------------------
 function buildRequestParams(csvTexts, pdfBase64s) {
   const csvArr = Array.isArray(csvTexts) ? csvTexts : [csvTexts];
   const pdfArr = Array.isArray(pdfBase64s) ? pdfBase64s : [pdfBase64s];
+
+  csvArr.forEach((csv, i) => {
+    const label = csvArr.length > 1 ? `CSV ${i + 1}` : null;
+    validateCsv(csv, label);
+  });
 
   const systemPrompt = fs.readFileSync(
     path.join(__dirname, "system_prompt.md"),
@@ -269,4 +295,4 @@ async function generateBriefStream(csvTexts, pdfBase64s, onChunk) {
   return { docxBuffer, markdownText, clientName };
 }
 
-module.exports = { generateBrief, generateBriefStream, extractClientName, parseInlineFormatting, parseMarkdownToDocxChildren };
+module.exports = { generateBrief, generateBriefStream, extractClientName, validateCsv, parseInlineFormatting, parseMarkdownToDocxChildren };

@@ -306,6 +306,19 @@
       background: var(--cream-dark);
       margin: 1.75rem 0;
     }
+
+    .upload-error {
+      color: var(--orange);
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-top: 0.4rem;
+    }
+
+    .upload-zone.has-error {
+      border-color: var(--orange);
+      border-style: solid;
+      background: #f9eeea;
+    }
   </style>
 </head>
 <body>
@@ -368,22 +381,76 @@
     const downloadsEl = document.getElementById("downloads");
     const errorEl = document.getElementById("error");
 
-    // File input display
-    document.querySelectorAll('.upload-zone input[type="file"]').forEach((input) => {
-      input.addEventListener("change", () => {
-        const zone = input.closest(".upload-zone");
-        if (input.files.length) {
-          zone.classList.add("has-file");
-          zone.querySelector(".upload-icon").hidden = true;
-          const names = Array.from(input.files).map((f) => f.name);
-          const label = names.length === 1
-            ? names[0]
-            : `${names.length} files selected`;
-          zone.querySelector(".upload-text").innerHTML =
-            '<span class="file-name"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' +
-            label + '</span>';
+    // CSV client-side validation
+    let csvValid = false;
+
+    function validateCsvText(text) {
+      if (!text || !text.trim()) return "CSV file is empty.";
+      const lines = text.trim().split(/\r?\n/).filter((l) => l.trim() !== "");
+      if (!lines[0].includes(",")) return "File does not appear to be a valid CSV (no commas found).";
+      if (lines.length < 2) return "CSV has no data rows (only a header was found).";
+      return null;
+    }
+
+    function clearUploadError(zone) {
+      zone.classList.remove("has-error");
+      const existing = zone.parentElement.querySelector(".upload-error");
+      if (existing) existing.remove();
+    }
+
+    function showUploadError(zone, message) {
+      clearUploadError(zone);
+      zone.classList.add("has-error");
+      zone.classList.remove("has-file");
+      const el = document.createElement("p");
+      el.className = "upload-error";
+      el.textContent = message;
+      zone.parentElement.appendChild(el);
+    }
+
+    // File input display — PDF (no validation needed)
+    document.getElementById("pdf").addEventListener("change", function () {
+      const zone = this.closest(".upload-zone");
+      if (this.files.length) {
+        zone.classList.add("has-file");
+        zone.querySelector(".upload-icon").hidden = true;
+        const names = Array.from(this.files).map((f) => f.name);
+        const label = names.length === 1 ? names[0] : `${names.length} files selected`;
+        zone.querySelector(".upload-text").innerHTML =
+          '<span class="file-name"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' +
+          label + '</span>';
+      }
+    });
+
+    // File input display — CSV (with validation)
+    document.getElementById("csv").addEventListener("change", async function () {
+      const zone = this.closest(".upload-zone");
+      clearUploadError(zone);
+      csvValid = false;
+
+      if (!this.files.length) return;
+
+      const files = Array.from(this.files);
+      for (const file of files) {
+        const text = await file.text();
+        const err = validateCsvText(text);
+        if (err) {
+          zone.querySelector(".upload-icon").hidden = false;
+          zone.querySelector(".upload-text").innerHTML = '<strong>Choose CSV file(s)</strong> or drag them here';
+          showUploadError(zone, files.length > 1 ? `${file.name}: ${err}` : err);
+          this.value = "";
+          return;
         }
-      });
+      }
+
+      csvValid = true;
+      zone.classList.add("has-file");
+      zone.querySelector(".upload-icon").hidden = true;
+      const names = files.map((f) => f.name);
+      const label = names.length === 1 ? names[0] : `${names.length} files selected`;
+      zone.querySelector(".upload-text").innerHTML =
+        '<span class="file-name"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' +
+        label + '</span>';
     });
 
     form.addEventListener("submit", async (e) => {
@@ -392,6 +459,7 @@
       const csvFiles = document.getElementById("csv").files;
       const pdfFiles = document.getElementById("pdf").files;
       if (!csvFiles.length || !pdfFiles.length) return;
+      if (!csvValid) return;
 
       downloadsEl.hidden = true;
       errorEl.hidden = true;
