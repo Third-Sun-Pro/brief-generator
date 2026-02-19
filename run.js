@@ -24,12 +24,16 @@ async function main() {
   );
 
   console.log("Sending to Claude...");
-  const { docxBuffer, markdownText } = await generateBrief(csvTexts, pdfBase64s);
+  const { docxBuffer, markdownText, clientName } = await generateBrief(csvTexts, pdfBase64s);
   console.log(`Response received (${markdownText.length} chars)`);
 
   const timestamp = new Date().toISOString().slice(0, 10);
-  const docxPath = path.join(OUTPUT_DIR, `creative-brief-${timestamp}.docx`);
-  const mdPath = path.join(OUTPUT_DIR, `creative-brief-${timestamp}.md`);
+  const slug = clientName
+    ? clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+    : null;
+  const baseName = slug ? `creative-brief-${slug}-${timestamp}` : `creative-brief-${timestamp}`;
+  const docxPath = path.join(OUTPUT_DIR, `${baseName}.docx`);
+  const mdPath = path.join(OUTPUT_DIR, `${baseName}.md`);
   fs.writeFileSync(docxPath, docxBuffer);
   fs.writeFileSync(mdPath, markdownText);
   console.log(`Brief saved to: ${docxPath}`);

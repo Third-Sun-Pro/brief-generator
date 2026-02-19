@@ -33,7 +33,7 @@ Standard Mobile-First boilerplate:
 
 Design Plan — Website Navigation: Build a HEADER, TOP NAVIGATION, MAIN NAVIGATION, and FOOTER NAVIGATION. Scale nav complexity to org type and scope — a small business needs a lean nav; a complex org needs a deeper hierarchy. Draw page names from the contract scope, audience needs, and CTAs. Top nav should always include the primary CTA as a button.
 
-Design Plan — Homepage Outline: Build 3-6 tiers. Tier 1 is always the hero with headline, subheadline, visual description, and CTA. Subsequent tiers address the top messages and CTAs from the discovery questionnaire. Each tier should have Content, Visual, and Button fields. End with Footer.
+Design Plan — Homepage Outline: Tier 1 is always the hero with headline, subheadline, visual description, and CTA. Add only as many subsequent tiers as the project genuinely needs — typically 3-4 total for a small business, up to 5-6 only for complex organizations with many distinct audiences or services. Do not pad with filler tiers. Each tier should address a specific top message or CTA from the discovery questionnaire and have Content, Visual, and Button fields. End with Footer.
 
 What do we need from you: Use the standard checklist below, adding any project-specific items flagged in the technical questionnaire:
 [ ] Review and comment on Creative Brief
@@ -53,5 +53,7 @@ What happens next: Always use this exact boilerplate:
 Style guide handling: If hex codes or a style guide file are provided, reference them in the Design Notes section. If not, write "Third Sun will develop or work with existing branding — style guide TBD."
 
 Tone: Professional, warm, and clear. Match the voice of the examples provided. This document will go directly to clients.
+
+Brevity: Keep the brief tight. Synthesize questionnaire responses into patterns and themes — do not restate every individual answer. If multiple responses say the same thing differently, distill them into one clear statement. Bullet points should be punchy (one line each). Paragraphs should be 2-3 sentences max. Cut filler words, redundant phrasing, and hedging language. Every sentence should earn its place.
 
 Output the brief as structured text with clear section headers matching the template exactly. Do not add commentary or explanation outside the brief itself.

@@ -264,6 +264,32 @@
     }
     .dl-md svg { fill: var(--brown); }
 
+    .preview {
+      margin-top: 1.5rem;
+      background: var(--cream-light);
+      border: 1px solid var(--cream-dark);
+      border-radius: 12px;
+      padding: 1.25rem;
+      max-height: 400px;
+      overflow-y: auto;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-family: 'DM Sans', sans-serif;
+      color: var(--brown);
+    }
+
+    .preview-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--green);
+      margin-top: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
     .error {
       color: var(--orange);
       background: #f9eeea;
@@ -327,6 +353,8 @@
     </form>
 
     <div id="status" class="status" hidden></div>
+    <div id="preview-label" class="preview-label" hidden>Live Preview</div>
+    <div id="preview" class="preview" hidden></div>
     <div id="downloads" class="downloads" hidden></div>
     <div id="error" class="error" hidden></div>
   </div>
@@ -335,6 +363,8 @@
     const form = document.getElementById("form");
     const btn = document.getElementById("btn");
     const statusEl = document.getElementById("status");
+    const previewLabel = document.getElementById("preview-label");
+    const previewEl = document.getElementById("preview");
     const downloadsEl = document.getElementById("downloads");
     const errorEl = document.getElementById("error");
 
@@ -366,43 +396,83 @@
       downloadsEl.hidden = true;
       errorEl.hidden = true;
       downloadsEl.innerHTML = "";
+      previewEl.hidden = true;
+      previewLabel.hidden = true;
+      previewEl.textContent = "";
       btn.disabled = true;
       statusEl.hidden = false;
-      statusEl.innerHTML = '<span class="spinner"></span>Generating brief... this may take a minute.';
+      statusEl.innerHTML = '<span class="spinner"></span>Generating brief...';
 
       const formData = new FormData();
       for (const file of csvFiles) formData.append("csv", file);
       for (const file of pdfFiles) formData.append("pdf", file);
 
       try {
-        const res = await fetch("/generate", { method: "POST", body: formData });
-        const data = await res.json();
+        const res = await fetch("/generate-stream", { method: "POST", body: formData });
 
-        if (!res.ok) throw new Error(data.error || "Server error");
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Server error");
+        }
 
-        const docxBlob = new Blob(
-          [Uint8Array.from(atob(data.docxBase64), (c) => c.charCodeAt(0))],
-          { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
-        );
-        const mdBlob = new Blob([data.markdown], { type: "text/markdown" });
-        const timestamp = new Date().toISOString().slice(0, 10);
+        previewLabel.hidden = false;
+        previewEl.hidden = false;
 
-        const docxLink = document.createElement("a");
-        docxLink.href = URL.createObjectURL(docxBlob);
-        docxLink.download = `creative-brief-${timestamp}.docx`;
-        docxLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .docx';
-        docxLink.className = "dl-docx";
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
 
-        const mdLink = document.createElement("a");
-        mdLink.href = URL.createObjectURL(mdBlob);
-        mdLink.download = `creative-brief-${timestamp}.md`;
-        mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .md';
-        mdLink.className = "dl-md";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        downloadsEl.appendChild(docxLink);
-        downloadsEl.appendChild(mdLink);
-        downloadsEl.hidden = false;
-        statusEl.innerHTML = "Done!";
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const json = JSON.parse(line.slice(6));
+
+            if (json.error) throw new Error(json.error);
+
+            if (json.done) {
+              const docxBlob = new Blob(
+                [Uint8Array.from(atob(json.docxBase64), (c) => c.charCodeAt(0))],
+                { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
+              );
+              const mdBlob = new Blob([json.markdown], { type: "text/markdown" });
+              const timestamp = new Date().toISOString().slice(0, 10);
+              const slug = json.clientName
+                ? json.clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+                : null;
+              const baseName = slug ? `creative-brief-${slug}-${timestamp}` : `creative-brief-${timestamp}`;
+
+              const docxLink = document.createElement("a");
+              docxLink.href = URL.createObjectURL(docxBlob);
+              docxLink.download = `${baseName}.docx`;
+              docxLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .docx';
+              docxLink.className = "dl-docx";
+
+              const mdLink = document.createElement("a");
+              mdLink.href = URL.createObjectURL(mdBlob);
+              mdLink.download = `${baseName}.md`;
+              mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .md';
+              mdLink.className = "dl-md";
+
+              downloadsEl.appendChild(docxLink);
+              downloadsEl.appendChild(mdLink);
+              downloadsEl.hidden = false;
+              statusEl.innerHTML = "Done!";
+              continue;
+            }
+
+            if (json.text) {
+              previewEl.textContent += json.text;
+              previewEl.scrollTop = previewEl.scrollHeight;
+            }
+          }
+        }
       } catch (err) {
         errorEl.textContent = err.message;
         errorEl.hidden = false;

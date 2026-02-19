@@ -146,10 +146,9 @@ function parseMarkdownToDocxChildren(markdown) {
 }
 
 // ---------------------------------------------------------------------------
-// generateBrief — core logic shared by CLI (run.js) and web (server.js)
+// Shared: build the API request params from inputs
 // ---------------------------------------------------------------------------
-async function generateBrief(csvTexts, pdfBase64s) {
-  // Normalize to arrays for backward compatibility
+function buildRequestParams(csvTexts, pdfBase64s) {
   const csvArr = Array.isArray(csvTexts) ? csvTexts : [csvTexts];
   const pdfArr = Array.isArray(pdfBase64s) ? pdfBase64s : [pdfBase64s];
 
@@ -162,9 +161,6 @@ async function generateBrief(csvTexts, pdfBase64s) {
     "utf-8"
   );
 
-  const client = new Anthropic();
-
-  // Build document blocks for each PDF
   const pdfBlocks = pdfArr.map((data, i) => ({
     type: "document",
     source: {
@@ -175,7 +171,6 @@ async function generateBrief(csvTexts, pdfBase64s) {
     title: pdfArr.length === 1 ? "Project Contract" : `Project Contract ${i + 1}`,
   }));
 
-  // Build a single text block with all CSVs
   const csvBlock = csvArr.length === 1
     ? `Here is the client discovery questionnaire (CSV):\n\n${csvArr[0]}`
     : csvArr.map((csv, i) => `--- Questionnaire ${i + 1} ---\n${csv}`).join("\n\n");
@@ -184,7 +179,7 @@ async function generateBrief(csvTexts, pdfBase64s) {
     ? csvBlock
     : `Here are the client discovery questionnaires (CSVs):\n\n${csvBlock}`;
 
-  const response = await client.messages.create({
+  return {
     model: "claude-sonnet-4-6",
     max_tokens: 16000,
     system: systemPrompt,
@@ -193,27 +188,37 @@ async function generateBrief(csvTexts, pdfBase64s) {
         role: "user",
         content: [
           ...pdfBlocks,
-          {
-            type: "text",
-            text: csvText,
-          },
+          { type: "text", text: csvText },
           {
             type: "text",
             text: `Here are example briefs to follow for tone, structure, and formatting:\n\n${examples}`,
           },
           {
             type: "text",
-            text: "Using the contract(s) (PDF) and questionnaire(s) (CSV) provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — use short, direct sentences. Avoid filler words, redundant phrasing, and overly wordy descriptions. Every sentence should earn its place. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.",
+            text: "Using the contract(s) (PDF) and questionnaire(s) (CSV) provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — synthesize responses into patterns and themes rather than restating every answer. Use short, direct sentences. Bullet points should be one line each. Cut filler words and redundant phrasing. Match the length and density of the examples, not longer. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.",
           },
         ],
       },
     ],
-  });
+  };
+}
 
-  const markdownText = response.content[0].text;
+// ---------------------------------------------------------------------------
+// Extract client name from the brief's title line
+// ---------------------------------------------------------------------------
+function extractClientName(markdown) {
+  const match = markdown.match(/^#\s+.+[\u2014—-]\s*(.+)/m);
+  if (match) return match[1].trim();
+  const openingMatch = markdown.match(/creative plan for\s+(.+?)\./i);
+  if (openingMatch) return openingMatch[1].trim();
+  return null;
+}
 
+// ---------------------------------------------------------------------------
+// Build a DOCX buffer from markdown text
+// ---------------------------------------------------------------------------
+async function buildDocx(markdownText) {
   const docChildren = parseMarkdownToDocxChildren(markdownText);
-
   const doc = new Document({
     creator: "Third Sun Productions",
     title: "Creative Brief",
@@ -229,10 +234,39 @@ async function generateBrief(csvTexts, pdfBase64s) {
       },
     ],
   });
-
-  const docxBuffer = await Packer.toBuffer(doc);
-
-  return { docxBuffer, markdownText };
+  return Packer.toBuffer(doc);
 }
 
-module.exports = { generateBrief, parseInlineFormatting, parseMarkdownToDocxChildren };
+// ---------------------------------------------------------------------------
+// generateBrief — blocking, used by CLI (run.js) and tests
+// ---------------------------------------------------------------------------
+async function generateBrief(csvTexts, pdfBase64s) {
+  const client = new Anthropic();
+  const params = buildRequestParams(csvTexts, pdfBase64s);
+  const response = await client.messages.create(params);
+  const markdownText = response.content[0].text;
+  const clientName = extractClientName(markdownText);
+  const docxBuffer = await buildDocx(markdownText);
+  return { docxBuffer, markdownText, clientName };
+}
+
+// ---------------------------------------------------------------------------
+// generateBriefStream — streaming, used by web server SSE endpoint
+// ---------------------------------------------------------------------------
+async function generateBriefStream(csvTexts, pdfBase64s, onChunk) {
+  const client = new Anthropic();
+  const params = buildRequestParams(csvTexts, pdfBase64s);
+  const stream = client.messages.stream(params);
+
+  stream.on("text", (delta) => {
+    onChunk(delta);
+  });
+
+  const finalMessage = await stream.finalMessage();
+  const markdownText = finalMessage.content[0].text;
+  const clientName = extractClientName(markdownText);
+  const docxBuffer = await buildDocx(markdownText);
+  return { docxBuffer, markdownText, clientName };
+}
+
+module.exports = { generateBrief, generateBriefStream, extractClientName, parseInlineFormatting, parseMarkdownToDocxChildren };
