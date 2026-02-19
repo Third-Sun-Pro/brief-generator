@@ -302,8 +302,8 @@
               <path d="M11 12h10M11 16h10M11 20h6" stroke="#979E6C" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
           </div>
-          <p class="upload-text"><strong>Choose CSV file</strong> or drag it here</p>
-          <input type="file" id="csv" name="csv" accept=".csv" required>
+          <p class="upload-text"><strong>Choose CSV file(s)</strong> or drag them here</p>
+          <input type="file" id="csv" name="csv" accept=".csv" multiple required>
         </div>
       </div>
 
@@ -316,8 +316,8 @@
               <path d="M11 12h10M11 16h10M11 20h6" stroke="#D18E97" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
           </div>
-          <p class="upload-text"><strong>Choose PDF file</strong> or drag it here</p>
-          <input type="file" id="pdf" name="pdf" accept=".pdf" required>
+          <p class="upload-text"><strong>Choose PDF file(s)</strong> or drag them here</p>
+          <input type="file" id="pdf" name="pdf" accept=".pdf" multiple required>
         </div>
       </div>
 
@@ -345,9 +345,13 @@
         if (input.files.length) {
           zone.classList.add("has-file");
           zone.querySelector(".upload-icon").hidden = true;
+          const names = Array.from(input.files).map((f) => f.name);
+          const label = names.length === 1
+            ? names[0]
+            : `${names.length} files selected`;
           zone.querySelector(".upload-text").innerHTML =
             '<span class="file-name"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' +
-            input.files[0].name + '</span>';
+            label + '</span>';
         }
       });
     });
@@ -355,9 +359,9 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const csvFile = document.getElementById("csv").files[0];
-      const pdfFile = document.getElementById("pdf").files[0];
-      if (!csvFile || !pdfFile) return;
+      const csvFiles = document.getElementById("csv").files;
+      const pdfFiles = document.getElementById("pdf").files;
+      if (!csvFiles.length || !pdfFiles.length) return;
 
       downloadsEl.hidden = true;
       errorEl.hidden = true;
@@ -367,8 +371,8 @@
       statusEl.innerHTML = '<span class="spinner"></span>Generating brief... this may take a minute.';
 
       const formData = new FormData();
-      formData.append("csv", csvFile);
-      formData.append("pdf", pdfFile);
+      for (const file of csvFiles) formData.append("csv", file);
+      for (const file of pdfFiles) formData.append("pdf", file);
 
       try {
         const res = await fetch("/generate", { method: "POST", body: formData });

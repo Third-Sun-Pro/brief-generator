@@ -148,7 +148,11 @@ function parseMarkdownToDocxChildren(markdown) {
 // ---------------------------------------------------------------------------
 // generateBrief — core logic shared by CLI (run.js) and web (server.js)
 // ---------------------------------------------------------------------------
-async function generateBrief(csvText, pdfBase64) {
+async function generateBrief(csvTexts, pdfBase64s) {
+  // Normalize to arrays for backward compatibility
+  const csvArr = Array.isArray(csvTexts) ? csvTexts : [csvTexts];
+  const pdfArr = Array.isArray(pdfBase64s) ? pdfBase64s : [pdfBase64s];
+
   const systemPrompt = fs.readFileSync(
     path.join(__dirname, "system_prompt.md"),
     "utf-8"
@@ -160,6 +164,26 @@ async function generateBrief(csvText, pdfBase64) {
 
   const client = new Anthropic();
 
+  // Build document blocks for each PDF
+  const pdfBlocks = pdfArr.map((data, i) => ({
+    type: "document",
+    source: {
+      type: "base64",
+      media_type: "application/pdf",
+      data,
+    },
+    title: pdfArr.length === 1 ? "Project Contract" : `Project Contract ${i + 1}`,
+  }));
+
+  // Build a single text block with all CSVs
+  const csvBlock = csvArr.length === 1
+    ? `Here is the client discovery questionnaire (CSV):\n\n${csvArr[0]}`
+    : csvArr.map((csv, i) => `--- Questionnaire ${i + 1} ---\n${csv}`).join("\n\n");
+
+  const csvText = csvArr.length === 1
+    ? csvBlock
+    : `Here are the client discovery questionnaires (CSVs):\n\n${csvBlock}`;
+
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 16000,
@@ -168,18 +192,10 @@ async function generateBrief(csvText, pdfBase64) {
       {
         role: "user",
         content: [
-          {
-            type: "document",
-            source: {
-              type: "base64",
-              media_type: "application/pdf",
-              data: pdfBase64,
-            },
-            title: "Project Contract",
-          },
+          ...pdfBlocks,
           {
             type: "text",
-            text: `Here is the client discovery questionnaire (CSV):\n\n${csvText}`,
+            text: csvText,
           },
           {
             type: "text",
@@ -187,7 +203,7 @@ async function generateBrief(csvText, pdfBase64) {
           },
           {
             type: "text",
-            text: "Using the contract (PDF) and questionnaire (CSV) provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — use short, direct sentences. Avoid filler words, redundant phrasing, and overly wordy descriptions. Every sentence should earn its place. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.",
+            text: "Using the contract(s) (PDF) and questionnaire(s) (CSV) provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — use short, direct sentences. Avoid filler words, redundant phrasing, and overly wordy descriptions. Every sentence should earn its place. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.",
           },
         ],
       },

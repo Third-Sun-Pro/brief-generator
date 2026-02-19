@@ -7,21 +7,24 @@ const OUTPUT_DIR = path.join(__dirname, "outputs");
 
 async function main() {
   const inputFiles = fs.readdirSync(INPUT_DIR);
-  const csvFile = inputFiles.find((f) => f.endsWith(".csv"));
-  const pdfFile = inputFiles.find((f) => f.endsWith(".pdf"));
+  const csvFiles = inputFiles.filter((f) => f.endsWith(".csv"));
+  const pdfFiles = inputFiles.filter((f) => f.endsWith(".pdf"));
 
-  if (!csvFile) throw new Error("No .csv file found in inputs/");
-  if (!pdfFile) throw new Error("No .pdf file found in inputs/");
+  if (!csvFiles.length) throw new Error("No .csv file found in inputs/");
+  if (!pdfFiles.length) throw new Error("No .pdf file found in inputs/");
 
-  console.log(`CSV: ${csvFile}`);
-  console.log(`PDF: ${pdfFile}`);
+  csvFiles.forEach((f) => console.log(`CSV: ${f}`));
+  pdfFiles.forEach((f) => console.log(`PDF: ${f}`));
 
-  const csvText = fs.readFileSync(path.join(INPUT_DIR, csvFile), "utf-8");
-  const pdfBuffer = fs.readFileSync(path.join(INPUT_DIR, pdfFile));
-  const pdfBase64 = pdfBuffer.toString("base64");
+  const csvTexts = csvFiles.map((f) =>
+    fs.readFileSync(path.join(INPUT_DIR, f), "utf-8")
+  );
+  const pdfBase64s = pdfFiles.map((f) =>
+    fs.readFileSync(path.join(INPUT_DIR, f)).toString("base64")
+  );
 
   console.log("Sending to Claude...");
-  const { docxBuffer, markdownText } = await generateBrief(csvText, pdfBase64);
+  const { docxBuffer, markdownText } = await generateBrief(csvTexts, pdfBase64s);
   console.log(`Response received (${markdownText.length} chars)`);
 
   const timestamp = new Date().toISOString().slice(0, 10);

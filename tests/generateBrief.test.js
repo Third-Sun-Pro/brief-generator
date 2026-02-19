@@ -86,4 +86,31 @@ describe("generateBrief", () => {
 
     expect(markdownText).toBe(sampleBrief);
   });
+
+  it("accepts arrays of multiple CSVs and PDFs", async () => {
+    const csvText = fs.readFileSync(
+      path.join(fixturesDir, "sample.csv"),
+      "utf-8"
+    );
+    const pdfBase64 = fs.readFileSync(
+      path.join(fixturesDir, "sample.pdf.base64"),
+      "utf-8"
+    );
+
+    const result = await generateBrief(
+      [csvText, csvText],
+      [pdfBase64, pdfBase64]
+    );
+
+    expect(result).toHaveProperty("docxBuffer");
+    expect(result).toHaveProperty("markdownText");
+    expect(Buffer.isBuffer(result.docxBuffer)).toBe(true);
+
+    // Verify the API was called with multiple document blocks
+    const lastCall = mockCreate.mock.calls[mockCreate.mock.calls.length - 1][0];
+    const docBlocks = lastCall.messages[0].content.filter(
+      (c) => c.type === "document"
+    );
+    expect(docBlocks).toHaveLength(2);
+  });
 });

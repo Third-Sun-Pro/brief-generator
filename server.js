@@ -12,27 +12,27 @@ app.use(express.static(path.join(__dirname, "public")));
 app.post(
   "/generate",
   upload.fields([
-    { name: "csv", maxCount: 1 },
-    { name: "pdf", maxCount: 1 },
+    { name: "csv", maxCount: 10 },
+    { name: "pdf", maxCount: 10 },
   ]),
   async (req, res) => {
     try {
-      const csvFileObj = req.files && req.files["csv"] && req.files["csv"][0];
-      const pdfFileObj = req.files && req.files["pdf"] && req.files["pdf"][0];
+      const csvFiles = req.files && req.files["csv"];
+      const pdfFiles = req.files && req.files["pdf"];
 
-      if (!csvFileObj || !pdfFileObj) {
+      if (!csvFiles || !csvFiles.length || !pdfFiles || !pdfFiles.length) {
         return res
           .status(400)
-          .json({ error: "Both a CSV and PDF file are required." });
+          .json({ error: "At least one CSV and one PDF file are required." });
       }
 
-      const csvText = csvFileObj.buffer.toString("utf-8");
-      const pdfBase64 = pdfFileObj.buffer.toString("base64");
+      const csvTexts = csvFiles.map((f) => f.buffer.toString("utf-8"));
+      const pdfBase64s = pdfFiles.map((f) => f.buffer.toString("base64"));
 
-      console.log("Generating brief...");
+      console.log(`Generating brief from ${csvFiles.length} CSV(s) and ${pdfFiles.length} PDF(s)...`);
       const { docxBuffer, markdownText } = await generateBrief(
-        csvText,
-        pdfBase64
+        csvTexts,
+        pdfBase64s
       );
       console.log("Brief generated successfully.");
 

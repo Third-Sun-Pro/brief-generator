@@ -83,4 +83,22 @@ describe("POST /generate", () => {
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty("error");
   });
+
+  it("returns 200 with multiple CSVs and PDFs", async () => {
+    const res = await request(app)
+      .post("/generate")
+      .attach("csv", csvBuffer, "test1.csv")
+      .attach("csv", csvBuffer, "test2.csv")
+      .attach("pdf", pdfBuffer, "test1.pdf")
+      .attach("pdf", pdfBuffer, "test2.pdf");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("docxBase64");
+    expect(res.body).toHaveProperty("markdown");
+
+    // Verify generateBrief was called with arrays
+    const lastCall = mockGenerateBrief.mock.calls[mockGenerateBrief.mock.calls.length - 1];
+    expect(lastCall[0]).toHaveLength(2); // 2 CSVs
+    expect(lastCall[1]).toHaveLength(2); // 2 PDFs
+  });
 });
