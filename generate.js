@@ -287,10 +287,21 @@ async function buildDocx(markdownText) {
 // ---------------------------------------------------------------------------
 // generateBrief — blocking, used by CLI (run.js) and tests
 // ---------------------------------------------------------------------------
+function logUsage(label, usage, durationMs) {
+  if (!usage) return;
+  const cache = usage.cache_read_input_tokens || 0;
+  const cacheCreated = usage.cache_creation_input_tokens || 0;
+  console.log(
+    `[${label}] ${durationMs}ms | in=${usage.input_tokens} out=${usage.output_tokens} cache_read=${cache} cache_write=${cacheCreated}`
+  );
+}
+
 async function generateBrief(csvTexts, pdfBase64s, siteContext) {
   const client = new Anthropic({ maxRetries: 5 });
   const params = buildRequestParams(csvTexts, pdfBase64s, siteContext);
+  const start = Date.now();
   const response = await client.messages.create(params);
+  logUsage("generate", response.usage, Date.now() - start);
   const markdownText = response.content[0].text;
   const clientName = extractClientName(markdownText);
   const docxBuffer = await buildDocx(markdownText);
@@ -303,6 +314,7 @@ async function generateBrief(csvTexts, pdfBase64s, siteContext) {
 async function generateBriefStream(csvTexts, pdfBase64s, siteContext, onChunk) {
   const client = new Anthropic({ maxRetries: 5 });
   const params = buildRequestParams(csvTexts, pdfBase64s, siteContext);
+  const start = Date.now();
   const stream = client.messages.stream(params);
 
   stream.on("text", (delta) => {
@@ -310,6 +322,7 @@ async function generateBriefStream(csvTexts, pdfBase64s, siteContext, onChunk) {
   });
 
   const finalMessage = await stream.finalMessage();
+  logUsage("generate-stream", finalMessage.usage, Date.now() - start);
   const markdownText = finalMessage.content[0].text;
   const clientName = extractClientName(markdownText);
   const docxBuffer = await buildDocx(markdownText);
@@ -338,6 +351,7 @@ function buildRevisionParams(originalParams, assistantMarkdown, feedback) {
 async function reviseBriefStream(originalParams, assistantMarkdown, feedback, onChunk) {
   const client = new Anthropic({ maxRetries: 5 });
   const params = buildRevisionParams(originalParams, assistantMarkdown, feedback);
+  const start = Date.now();
   const stream = client.messages.stream(params);
 
   stream.on("text", (delta) => {
@@ -345,6 +359,7 @@ async function reviseBriefStream(originalParams, assistantMarkdown, feedback, on
   });
 
   const finalMessage = await stream.finalMessage();
+  logUsage("revise-stream", finalMessage.usage, Date.now() - start);
   const markdownText = finalMessage.content[0].text;
   const clientName = extractClientName(markdownText);
   const docxBuffer = await buildDocx(markdownText);

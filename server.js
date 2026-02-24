@@ -78,6 +78,17 @@ const loginLimiter = isTest
 
 app.use(cookieParser());
 app.use(express.json());
+
+// Request logger (skip static files)
+app.use((req, res, next) => {
+  if (req.method === "GET" && !req.path.startsWith("/auth")) return next();
+  const start = Date.now();
+  res.on("finish", () => {
+    console.log(`[req] ${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
+  });
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
