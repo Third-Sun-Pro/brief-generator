@@ -10,6 +10,7 @@ const require = createRequire(import.meta.url);
 
 // Set env vars before loading server
 process.env.APP_PASSWORD = "test-password";
+process.env.ANTHROPIC_API_KEY = "test-key";
 process.env.NODE_ENV = "test";
 
 const sampleBrief = "# Creative Brief — Acme Corp\n\nOriginal brief content.";

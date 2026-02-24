@@ -9,6 +9,17 @@ const { generateBrief, generateBriefStream, reviseBriefStream } = require("./gen
 const { scrapeNavigation } = require("./scrape");
 const { addEntry, listEntries, getEntry } = require("./archive");
 
+// ---------------------------------------------------------------------------
+// Startup validation — fail fast if required env vars are missing
+// ---------------------------------------------------------------------------
+const REQUIRED_ENV = ["APP_PASSWORD", "ANTHROPIC_API_KEY"];
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) {
+    console.error(`Fatal: ${key} environment variable is not set.`);
+    process.exit(1);
+  }
+}
+
 const app = express();
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -18,7 +29,7 @@ const upload = multer({
   },
 });
 
-const APP_PASSWORD = process.env.APP_PASSWORD || "";
+const APP_PASSWORD = process.env.APP_PASSWORD;
 const AUTH_SECRET = APP_PASSWORD; // used as HMAC key
 
 // ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url);
 
 // Set env vars before loading anything
 process.env.APP_PASSWORD = "test-password";
+process.env.ANTHROPIC_API_KEY = "test-key";
 process.env.NODE_ENV = "test";
 
 // Use temp dir for archive so tests don't pollute real data
