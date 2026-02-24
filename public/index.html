@@ -411,6 +411,133 @@
       font-weight: 500;
     }
 
+    .archive-toggle {
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--cream);
+      color: var(--brown);
+      border: none;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      margin-top: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    .archive-toggle:hover {
+      background: var(--cream-dark);
+      transform: translateY(-1px);
+    }
+
+    .archive-toggle svg {
+      width: 16px;
+      height: 16px;
+      fill: var(--brown);
+    }
+
+    .archive-list {
+      margin-top: 1rem;
+    }
+
+    .archive-empty {
+      text-align: center;
+      color: #9a8a6e;
+      font-size: 0.85rem;
+      padding: 1.5rem 0;
+    }
+
+    .archive-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 0;
+      border-bottom: 1px solid var(--cream-dark);
+    }
+
+    .archive-item:last-child {
+      border-bottom: none;
+    }
+
+    .archive-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .archive-item-name {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--brown);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .archive-item-meta {
+      font-size: 0.75rem;
+      color: #9a8a6e;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.15rem;
+    }
+
+    .archive-badge {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .badge-generate {
+      background: #f0f1e8;
+      color: var(--green);
+    }
+
+    .badge-revise {
+      background: #f2dce0;
+      color: var(--pink);
+    }
+
+    .archive-item-actions {
+      display: flex;
+      gap: 0.35rem;
+      flex-shrink: 0;
+      margin-left: 0.5rem;
+    }
+
+    .archive-dl-btn {
+      padding: 0.35rem 0.55rem;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .archive-dl-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .archive-dl-docx {
+      background: var(--green);
+      color: #fff;
+    }
+
+    .archive-dl-md {
+      background: var(--cream);
+      color: var(--brown);
+    }
+
     .hidden { display: none !important; }
 
     .login-overlay {
@@ -557,6 +684,12 @@
     </div>
     <div id="warning" class="warning" hidden></div>
     <div id="error" class="error" hidden></div>
+
+    <button type="button" id="archive-toggle" class="archive-toggle">
+      <svg viewBox="0 0 24 24"><path d="M20 6H4V4h16v2zm-1 2H5c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h14c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-5 7H10v-2h4v2z"/></svg>
+      Past Briefs
+    </button>
+    <div id="archive-list" class="archive-list hidden"></div>
   </div>
 
   <script>
@@ -953,6 +1086,124 @@
         stopTimer();
         reviseBtn.disabled = false;
         setFormDisabled(false);
+      }
+    });
+    // -----------------------------------------------------------------------
+    // Archive
+    // -----------------------------------------------------------------------
+    const archiveToggle = document.getElementById("archive-toggle");
+    const archiveListEl = document.getElementById("archive-list");
+    let archiveOpen = false;
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        + " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    }
+
+    async function fetchArchiveEntry(id, format) {
+      const res = await fetch("/archive/" + id);
+      if (handle401(res)) return;
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to load entry");
+      }
+      const entry = await res.json();
+      const slug = entry.clientName
+        ? entry.clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+        : null;
+      const date = entry.createdAt.slice(0, 10);
+      const baseName = slug ? "creative-brief-" + slug + "-" + date : "creative-brief-" + date;
+
+      if (format === "docx") {
+        const bytes = Uint8Array.from(atob(entry.docxBase64), (c) => c.charCodeAt(0));
+        downloadBlob(
+          new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+          baseName + ".docx"
+        );
+      } else {
+        downloadBlob(new Blob([entry.markdown], { type: "text/markdown" }), baseName + ".md");
+      }
+    }
+
+    async function loadArchive() {
+      archiveListEl.innerHTML = '<p class="archive-empty">Loading...</p>';
+      try {
+        const res = await fetch("/archive");
+        if (handle401(res)) return;
+        if (!res.ok) throw new Error("Failed to load archive");
+        const entries = await res.json();
+
+        if (!entries.length) {
+          archiveListEl.innerHTML = '<p class="archive-empty">No briefs generated yet.</p>';
+          return;
+        }
+
+        // Newest first
+        entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        archiveListEl.innerHTML = entries.map((e) => {
+          const badgeClass = e.source === "revise" ? "badge-revise" : "badge-generate";
+          const badgeLabel = e.source === "revise" ? "Revised" : "Original";
+          return '<div class="archive-item">' +
+            '<div class="archive-item-info">' +
+              '<div class="archive-item-name">' + escapeHtml(e.clientName) + '</div>' +
+              '<div class="archive-item-meta">' +
+                '<span>' + formatDate(e.createdAt) + '</span>' +
+                '<span class="archive-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="archive-item-actions">' +
+              '<button class="archive-dl-btn archive-dl-docx" data-id="' + e.id + '" data-fmt="docx">.docx</button>' +
+              '<button class="archive-dl-btn archive-dl-md" data-id="' + e.id + '" data-fmt="md">.md</button>' +
+            '</div>' +
+          '</div>';
+        }).join("");
+      } catch (err) {
+        archiveListEl.innerHTML = '<p class="archive-empty">' + escapeHtml(err.message) + '</p>';
+      }
+    }
+
+    archiveToggle.addEventListener("click", () => {
+      archiveOpen = !archiveOpen;
+      if (archiveOpen) {
+        archiveListEl.classList.remove("hidden");
+        loadArchive();
+      } else {
+        archiveListEl.classList.add("hidden");
+      }
+    });
+
+    archiveListEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".archive-dl-btn");
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = "...";
+      try {
+        await fetchArchiveEntry(btn.dataset.id, btn.dataset.fmt);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = btn.dataset.fmt === "docx" ? ".docx" : ".md";
       }
     });
   </script>

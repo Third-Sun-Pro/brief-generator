@@ -7,6 +7,7 @@ const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
 const { generateBrief, generateBriefStream, reviseBriefStream } = require("./generate");
 const { scrapeNavigation } = require("./scrape");
+const { addEntry, listEntries, getEntry } = require("./archive");
 
 const app = express();
 const upload = multer({
@@ -81,7 +82,7 @@ app.use(express.json());
 
 // Request logger (skip static files)
 app.use((req, res, next) => {
-  if (req.method === "GET" && !req.path.startsWith("/auth")) return next();
+  if (req.method === "GET" && !req.path.startsWith("/auth") && !req.path.startsWith("/archive")) return next();
   const start = Date.now();
   res.on("finish", () => {
     console.log(`[req] ${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
@@ -269,6 +270,11 @@ app.post(
 
       const sessionId = createSession(params, markdownText);
 
+      try {
+        addEntry({ clientName: clientName || "Untitled", markdown: markdownText,
+          docxBase64: docxBuffer.toString("base64"), source: "generate" });
+      } catch (archiveErr) { console.error("Archive save failed:", archiveErr.message); }
+
       res.write(`data: ${JSON.stringify({
         done: true,
         docxBase64: docxBuffer.toString("base64"),
@@ -320,6 +326,11 @@ app.post("/revise-stream", requireAuth, apiLimiter, async (req, res) => {
     session.markdown = markdownText;
     session.createdAt = Date.now();
 
+    try {
+      addEntry({ clientName: clientName || "Untitled", markdown: markdownText,
+        docxBase64: docxBuffer.toString("base64"), source: "revise" });
+    } catch (archiveErr) { console.error("Archive save failed:", archiveErr.message); }
+
     console.log("Brief revised successfully.");
 
     res.write(`data: ${JSON.stringify({
@@ -335,6 +346,19 @@ app.post("/revise-stream", requireAuth, apiLimiter, async (req, res) => {
     res.write(`data: ${JSON.stringify({ error: cleanErrorMessage(err) })}\n\n`);
     res.end();
   }
+});
+
+// ---------------------------------------------------------------------------
+// Archive endpoints
+// ---------------------------------------------------------------------------
+app.get("/archive", requireAuth, (_req, res) => {
+  res.json(listEntries());
+});
+
+app.get("/archive/:id", requireAuth, (req, res) => {
+  const entry = getEntry(req.params.id);
+  if (!entry) return res.status(404).json({ error: "Entry not found." });
+  res.json(entry);
 });
 
 function cleanErrorMessage(err) {
