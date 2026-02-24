@@ -194,6 +194,25 @@
       box-shadow: none;
     }
 
+    .cancel-btn {
+      width: 100%;
+      padding: 0.75rem;
+      background: transparent;
+      color: var(--orange);
+      border: 2px solid var(--orange);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      margin-top: 0.5rem;
+    }
+
+    .cancel-btn:hover {
+      background: #f9eeea;
+    }
+
     .status {
       text-align: center;
       margin-top: 1.5rem;
@@ -699,6 +718,7 @@
       <div class="divider"></div>
 
       <button type="submit" id="btn">Generate Brief</button>
+      <button type="button" id="cancel-btn" class="cancel-btn" hidden>Cancel</button>
     </form>
 
     <div id="status" class="status" hidden></div>
@@ -802,7 +822,9 @@
     let currentSessionId = null;
     let timerInterval = null;
     let sessionExpiryInterval = null;
+    let currentAbortController = null;
     const sessionExpiryEl = document.getElementById("session-expiry");
+    const cancelBtn = document.getElementById("cancel-btn");
 
     function startSessionExpiry(ttlMs) {
       clearSessionExpiry();
@@ -870,6 +892,44 @@
       document.getElementById("notes-zone").style.pointerEvents = disabled ? "none" : "";
       document.getElementById("notes-zone").style.opacity = disabled ? "0.5" : "";
     }
+
+    function createDownloadLinks(json) {
+      const docxBlob = new Blob(
+        [Uint8Array.from(atob(json.docxBase64), (c) => c.charCodeAt(0))],
+        { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
+      );
+      const mdBlob = new Blob([json.markdown], { type: "text/markdown" });
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const slug = json.clientName
+        ? json.clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+        : null;
+      const baseName = slug ? `creative-brief-${slug}-${timestamp}` : `creative-brief-${timestamp}`;
+
+      const docxLink = document.createElement("a");
+      docxLink.href = URL.createObjectURL(docxBlob);
+      docxLink.download = `${baseName}.docx`;
+      docxLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .docx';
+      docxLink.className = "dl-docx";
+
+      const mdLink = document.createElement("a");
+      mdLink.href = URL.createObjectURL(mdBlob);
+      mdLink.download = `${baseName}.md`;
+      mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .md';
+      mdLink.className = "dl-md";
+
+      downloadsEl.appendChild(docxLink);
+      downloadsEl.appendChild(mdLink);
+      downloadsEl.hidden = false;
+    }
+
+    function cancelStream() {
+      if (currentAbortController) {
+        currentAbortController.abort();
+        currentAbortController = null;
+      }
+    }
+
+    cancelBtn.addEventListener("click", cancelStream);
 
     // CSV client-side validation
     let csvValid = false;
@@ -969,6 +1029,8 @@
       previewEl.textContent = "";
       setFormDisabled(true);
       startTimer("Generating brief...");
+      currentAbortController = new AbortController();
+      cancelBtn.hidden = false;
 
       const formData = new FormData();
       for (const file of csvFiles) formData.append("csv", file);
@@ -978,7 +1040,7 @@
       if (siteUrl) formData.append("siteUrl", siteUrl);
 
       try {
-        const res = await fetch("/generate-stream", { method: "POST", body: formData });
+        const res = await fetch("/generate-stream", { method: "POST", body: formData, signal: currentAbortController.signal });
 
         if (handle401(res)) return;
         if (!res.ok) {
@@ -1014,32 +1076,7 @@
             }
 
             if (json.done) {
-              const docxBlob = new Blob(
-                [Uint8Array.from(atob(json.docxBase64), (c) => c.charCodeAt(0))],
-                { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
-              );
-              const mdBlob = new Blob([json.markdown], { type: "text/markdown" });
-              const timestamp = new Date().toISOString().slice(0, 10);
-              const slug = json.clientName
-                ? json.clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
-                : null;
-              const baseName = slug ? `creative-brief-${slug}-${timestamp}` : `creative-brief-${timestamp}`;
-
-              const docxLink = document.createElement("a");
-              docxLink.href = URL.createObjectURL(docxBlob);
-              docxLink.download = `${baseName}.docx`;
-              docxLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .docx';
-              docxLink.className = "dl-docx";
-
-              const mdLink = document.createElement("a");
-              mdLink.href = URL.createObjectURL(mdBlob);
-              mdLink.download = `${baseName}.md`;
-              mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .md';
-              mdLink.className = "dl-md";
-
-              downloadsEl.appendChild(docxLink);
-              downloadsEl.appendChild(mdLink);
-              downloadsEl.hidden = false;
+              createDownloadLinks(json);
               currentSessionId = json.sessionId;
               statusEl.innerHTML = "Done!";
               revisionArea.hidden = false;
@@ -1056,11 +1093,17 @@
           }
         }
       } catch (err) {
-        errorEl.textContent = err.message;
-        errorEl.hidden = false;
-        statusEl.hidden = true;
+        if (err.name === "AbortError") {
+          statusEl.innerHTML = "Cancelled.";
+        } else {
+          errorEl.textContent = err.message;
+          errorEl.hidden = false;
+          statusEl.hidden = true;
+        }
       } finally {
         stopTimer();
+        currentAbortController = null;
+        cancelBtn.hidden = true;
         setFormDisabled(false);
       }
     });
@@ -1090,12 +1133,15 @@
       reviseBtn.disabled = true;
       setFormDisabled(true);
       startTimer("Revising brief...");
+      currentAbortController = new AbortController();
+      cancelBtn.hidden = false;
 
       try {
         const res = await fetch("/revise-stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId: currentSessionId, feedback }),
+          signal: currentAbortController.signal,
         });
 
         if (handle401(res)) return;
@@ -1124,33 +1170,7 @@
 
             if (json.done) {
               currentSessionId = json.sessionId;
-
-              const docxBlob = new Blob(
-                [Uint8Array.from(atob(json.docxBase64), (c) => c.charCodeAt(0))],
-                { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
-              );
-              const mdBlob = new Blob([json.markdown], { type: "text/markdown" });
-              const timestamp = new Date().toISOString().slice(0, 10);
-              const slug = json.clientName
-                ? json.clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
-                : null;
-              const baseName = slug ? `creative-brief-${slug}-${timestamp}` : `creative-brief-${timestamp}`;
-
-              const docxLink = document.createElement("a");
-              docxLink.href = URL.createObjectURL(docxBlob);
-              docxLink.download = `${baseName}.docx`;
-              docxLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .docx';
-              docxLink.className = "dl-docx";
-
-              const mdLink = document.createElement("a");
-              mdLink.href = URL.createObjectURL(mdBlob);
-              mdLink.download = `${baseName}.md`;
-              mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .md';
-              mdLink.className = "dl-md";
-
-              downloadsEl.appendChild(docxLink);
-              downloadsEl.appendChild(mdLink);
-              downloadsEl.hidden = false;
+              createDownloadLinks(json);
               statusEl.innerHTML = "Done!";
               feedbackEl.value = "";
               if (json.sessionTtl) startSessionExpiry(json.sessionTtl);
@@ -1164,11 +1184,17 @@
           }
         }
       } catch (err) {
-        errorEl.textContent = err.message;
-        errorEl.hidden = false;
-        statusEl.hidden = true;
+        if (err.name === "AbortError") {
+          statusEl.innerHTML = "Cancelled.";
+        } else {
+          errorEl.textContent = err.message;
+          errorEl.hidden = false;
+          statusEl.hidden = true;
+        }
       } finally {
         stopTimer();
+        currentAbortController = null;
+        cancelBtn.hidden = true;
         reviseBtn.disabled = false;
         setFormDisabled(false);
       }
