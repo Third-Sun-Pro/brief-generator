@@ -164,27 +164,52 @@ const cleanupInterval = setInterval(() => {
 }, 5 * 60 * 1000);
 cleanupInterval.unref();
 
+// ---------------------------------------------------------------------------
+// Helper: convert uploaded note files to content block descriptors
+// ---------------------------------------------------------------------------
+const NOTE_MEDIA_TYPES = {
+  ".pdf": "application/pdf",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
+
+function buildNoteFiles(files) {
+  if (!files || !files.length) return [];
+  return files.map((f, i) => {
+    const ext = path.extname(f.originalname).toLowerCase();
+    const title = files.length === 1 ? "Supporting Document" : `Supporting Document ${i + 1}`;
+    if (ext === ".txt" || ext === ".md") {
+      return { text: f.buffer.toString("utf-8"), title };
+    }
+    const mediaType = NOTE_MEDIA_TYPES[ext];
+    if (mediaType) {
+      return { data: f.buffer.toString("base64"), mediaType, title };
+    }
+    // Fallback: treat as text
+    return { text: f.buffer.toString("utf-8"), title };
+  });
+}
+
 app.post(
   "/generate",
   requireAuth,
   apiLimiter,
   upload.fields([
     { name: "csv", maxCount: 10 },
-    { name: "pdf", maxCount: 10 },
+    { name: "notes", maxCount: 10 },
   ]),
   async (req, res) => {
     try {
       const csvFiles = req.files && req.files["csv"];
-      const pdfFiles = req.files && req.files["pdf"];
+      const scopeText = req.body && req.body.scope;
 
-      if (!csvFiles || !csvFiles.length || !pdfFiles || !pdfFiles.length) {
+      if (!csvFiles || !csvFiles.length || !scopeText || !scopeText.trim()) {
         return res
           .status(400)
-          .json({ error: "At least one CSV and one PDF file are required." });
+          .json({ error: "At least one CSV file and a project scope are required." });
       }
 
       const csvTexts = csvFiles.map((f) => f.buffer.toString("utf-8"));
-      const pdfBase64s = pdfFiles.map((f) => f.buffer.toString("base64"));
+      const noteFiles = buildNoteFiles(req.files && req.files["notes"]);
 
       let siteContext = null;
       let scrapeWarning = null;
@@ -200,10 +225,11 @@ app.post(
         }
       }
 
-      console.log(`Generating brief from ${csvFiles.length} CSV(s) and ${pdfFiles.length} PDF(s)...`);
+      console.log(`Generating brief from ${csvFiles.length} CSV(s), scope, and ${noteFiles.length} note(s)...`);
       const { docxBuffer, markdownText, clientName } = await generateBrief(
         csvTexts,
-        pdfBase64s,
+        scopeText.trim(),
+        noteFiles,
         siteContext
       );
       console.log("Brief generated successfully.");
@@ -228,16 +254,16 @@ app.post(
   apiLimiter,
   upload.fields([
     { name: "csv", maxCount: 10 },
-    { name: "pdf", maxCount: 10 },
+    { name: "notes", maxCount: 10 },
   ]),
   async (req, res) => {
     const csvFiles = req.files && req.files["csv"];
-    const pdfFiles = req.files && req.files["pdf"];
+    const scopeText = req.body && req.body.scope;
 
-    if (!csvFiles || !csvFiles.length || !pdfFiles || !pdfFiles.length) {
+    if (!csvFiles || !csvFiles.length || !scopeText || !scopeText.trim()) {
       return res
         .status(400)
-        .json({ error: "At least one CSV and one PDF file are required." });
+        .json({ error: "At least one CSV file and a project scope are required." });
     }
 
     res.setHeader("Content-Type", "text/event-stream");
@@ -246,7 +272,7 @@ app.post(
 
     try {
       const csvTexts = csvFiles.map((f) => f.buffer.toString("utf-8"));
-      const pdfBase64s = pdfFiles.map((f) => f.buffer.toString("base64"));
+      const noteFiles = buildNoteFiles(req.files && req.files["notes"]);
 
       let siteContext = null;
       let scrapeWarning = null;
@@ -266,11 +292,12 @@ app.post(
         res.write(`data: ${JSON.stringify({ scrapeWarning })}\n\n`);
       }
 
-      console.log(`Streaming brief from ${csvFiles.length} CSV(s) and ${pdfFiles.length} PDF(s)...`);
+      console.log(`Streaming brief from ${csvFiles.length} CSV(s), scope, and ${noteFiles.length} note(s)...`);
 
       const { docxBuffer, markdownText, clientName, params } = await generateBriefStream(
         csvTexts,
-        pdfBase64s,
+        scopeText.trim(),
+        noteFiles,
         siteContext,
         (delta) => {
           res.write(`data: ${JSON.stringify({ text: delta })}\n\n`);

@@ -57,25 +57,19 @@ async function getAuthCookie(appInstance) {
 
 describe("POST /generate", () => {
   let csvBuffer;
-  let pdfBuffer;
   let authCookie;
 
   beforeAll(async () => {
     csvBuffer = fs.readFileSync(path.join(fixturesDir, "sample.csv"));
-    const pdfBase64 = fs.readFileSync(
-      path.join(fixturesDir, "sample.pdf.base64"),
-      "utf-8"
-    );
-    pdfBuffer = Buffer.from(pdfBase64, "base64");
     authCookie = await getAuthCookie(app);
   });
 
-  it("returns 200 with docxBase64 and markdown when both files provided", async () => {
+  it("returns 200 with docxBase64 and markdown when CSV and scope provided", async () => {
     const res = await request(app)
       .post("/generate")
       .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Build a 10-page website for Acme Corp");
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("docxBase64");
@@ -88,13 +82,13 @@ describe("POST /generate", () => {
     const res = await request(app)
       .post("/generate")
       .set("Cookie", authCookie)
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Test scope");
 
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty("error");
   });
 
-  it("returns 400 when PDF is missing", async () => {
+  it("returns 400 when scope is missing", async () => {
     const res = await request(app)
       .post("/generate")
       .set("Cookie", authCookie)
@@ -104,7 +98,7 @@ describe("POST /generate", () => {
     expect(res.body).toHaveProperty("error");
   });
 
-  it("returns 400 when both files are missing", async () => {
+  it("returns 400 when both CSV and scope are missing", async () => {
     const res = await request(app)
       .post("/generate")
       .set("Cookie", authCookie);
@@ -113,14 +107,14 @@ describe("POST /generate", () => {
     expect(res.body).toHaveProperty("error");
   });
 
-  it("returns 200 with multiple CSVs and PDFs", async () => {
+  it("returns 200 with multiple CSVs and optional notes", async () => {
     const res = await request(app)
       .post("/generate")
       .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test1.csv")
       .attach("csv", csvBuffer, "test2.csv")
-      .attach("pdf", pdfBuffer, "test1.pdf")
-      .attach("pdf", pdfBuffer, "test2.pdf");
+      .attach("notes", Buffer.from("Meeting notes here"), "notes.txt")
+      .field("scope", "Full redesign project");
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("docxBase64");
@@ -129,28 +123,23 @@ describe("POST /generate", () => {
     // Verify generateBrief was called with arrays
     const lastCall = mockGenerateBrief.mock.calls[mockGenerateBrief.mock.calls.length - 1];
     expect(lastCall[0]).toHaveLength(2); // 2 CSVs
-    expect(lastCall[1]).toHaveLength(2); // 2 PDFs
+    expect(lastCall[1]).toBe("Full redesign project"); // scope text
+    expect(lastCall[2]).toHaveLength(1); // 1 note file
   });
 });
 
 describe("Authentication", () => {
   let csvBuffer;
-  let pdfBuffer;
 
   beforeAll(() => {
     csvBuffer = fs.readFileSync(path.join(fixturesDir, "sample.csv"));
-    const pdfBase64 = fs.readFileSync(
-      path.join(fixturesDir, "sample.pdf.base64"),
-      "utf-8"
-    );
-    pdfBuffer = Buffer.from(pdfBase64, "base64");
   });
 
   it("returns 401 on /generate without auth cookie", async () => {
     const res = await request(app)
       .post("/generate")
       .attach("csv", csvBuffer, "test.csv")
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Test scope");
 
     expect(res.status).toBe(401);
     expect(res.body).toHaveProperty("error");
@@ -207,7 +196,8 @@ describe("File size limits", () => {
       .post("/generate")
       .set("Cookie", authCookie)
       .attach("csv", Buffer.from("a,b\n1,2"), "test.csv")
-      .attach("pdf", oversizedBuffer, "huge.pdf");
+      .attach("notes", oversizedBuffer, "huge.pdf")
+      .field("scope", "Test scope");
 
     expect(res.status).toBe(413);
     expect(res.body.error).toMatch(/too large/i);

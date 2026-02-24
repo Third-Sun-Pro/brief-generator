@@ -146,12 +146,11 @@ describe("reviseBriefStream", () => {
 describe("generateBriefStream", () => {
   it("returns params alongside other fields", async () => {
     const csvText = fs.readFileSync(path.join(fixturesDir, "sample.csv"), "utf-8");
-    const pdfBase64 = fs.readFileSync(path.join(fixturesDir, "sample.pdf.base64"), "utf-8");
 
     // Override stream mock for this test to return sampleBrief
     mockStream.finalMessage.mockResolvedValueOnce({ content: [{ text: sampleBrief }] });
 
-    const result = await generateBriefStream(csvText, pdfBase64, null, vi.fn());
+    const result = await generateBriefStream(csvText, "Test project scope", [], null, vi.fn());
 
     expect(result).toHaveProperty("params");
     expect(result.params).toHaveProperty("model");

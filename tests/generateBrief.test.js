@@ -45,12 +45,8 @@ describe("generateBrief", () => {
       path.join(fixturesDir, "sample.csv"),
       "utf-8"
     );
-    const pdfBase64 = fs.readFileSync(
-      path.join(fixturesDir, "sample.pdf.base64"),
-      "utf-8"
-    );
 
-    const result = await generateBrief(csvText, pdfBase64);
+    const result = await generateBrief(csvText, "Test project scope", []);
 
     expect(result).toHaveProperty("docxBuffer");
     expect(result).toHaveProperty("markdownText");
@@ -61,12 +57,8 @@ describe("generateBrief", () => {
       path.join(fixturesDir, "sample.csv"),
       "utf-8"
     );
-    const pdfBase64 = fs.readFileSync(
-      path.join(fixturesDir, "sample.pdf.base64"),
-      "utf-8"
-    );
 
-    const { docxBuffer } = await generateBrief(csvText, pdfBase64);
+    const { docxBuffer } = await generateBrief(csvText, "Test project scope", []);
 
     expect(Buffer.isBuffer(docxBuffer)).toBe(true);
     expect(docxBuffer.length).toBeGreaterThan(0);
@@ -77,41 +69,39 @@ describe("generateBrief", () => {
       path.join(fixturesDir, "sample.csv"),
       "utf-8"
     );
-    const pdfBase64 = fs.readFileSync(
-      path.join(fixturesDir, "sample.pdf.base64"),
-      "utf-8"
-    );
 
-    const { markdownText } = await generateBrief(csvText, pdfBase64);
+    const { markdownText } = await generateBrief(csvText, "Test scope", []);
 
     expect(markdownText).toBe(sampleBrief);
   });
 
-  it("accepts arrays of multiple CSVs and PDFs", async () => {
+  it("includes scope text and note document blocks in API call", async () => {
     const csvText = fs.readFileSync(
       path.join(fixturesDir, "sample.csv"),
       "utf-8"
     );
-    const pdfBase64 = fs.readFileSync(
-      path.join(fixturesDir, "sample.pdf.base64"),
-      "utf-8"
-    );
+    const noteFiles = [
+      { data: "ZmFrZQ==", mediaType: "application/pdf", title: "Supporting Document 1" },
+      { text: "Some notes text", title: "Supporting Document 2" },
+    ];
 
-    const result = await generateBrief(
-      [csvText, csvText],
-      [pdfBase64, pdfBase64]
-    );
+    await generateBrief(csvText, "Build a 10-page website", noteFiles);
 
-    expect(result).toHaveProperty("docxBuffer");
-    expect(result).toHaveProperty("markdownText");
-    expect(Buffer.isBuffer(result.docxBuffer)).toBe(true);
-
-    // Verify the API was called with multiple document blocks
     const lastCall = mockCreate.mock.calls[mockCreate.mock.calls.length - 1][0];
-    const docBlocks = lastCall.messages[0].content.filter(
-      (c) => c.type === "document"
-    );
-    expect(docBlocks).toHaveLength(2);
+    const textBlocks = lastCall.messages[0].content.filter((c) => c.type === "text");
+    const docBlocks = lastCall.messages[0].content.filter((c) => c.type === "document");
+
+    // Should have scope text block
+    const scopeBlock = textBlocks.find((b) => b.text.includes("PROJECT SCOPE"));
+    expect(scopeBlock).toBeDefined();
+    expect(scopeBlock.text).toContain("Build a 10-page website");
+
+    // Should have one PDF document block
+    expect(docBlocks).toHaveLength(1);
+
+    // Should have text note block
+    const noteBlock = textBlocks.find((b) => b.text.includes("Some notes text"));
+    expect(noteBlock).toBeDefined();
   });
 
   it("multi-CSV includes consensus threshold instruction", () => {
@@ -119,14 +109,11 @@ describe("generateBrief", () => {
       path.join(fixturesDir, "sample.csv"),
       "utf-8"
     );
-    const pdfBase64 = fs.readFileSync(
-      path.join(fixturesDir, "sample.pdf.base64"),
-      "utf-8"
-    );
 
     const params = buildRequestParams(
       [csvText, csvText, csvText, csvText],
-      [pdfBase64]
+      "Test scope",
+      []
     );
 
     const textBlocks = params.messages[0].content.filter(
@@ -144,12 +131,8 @@ describe("generateBrief", () => {
       path.join(fixturesDir, "sample.csv"),
       "utf-8"
     );
-    const pdfBase64 = fs.readFileSync(
-      path.join(fixturesDir, "sample.pdf.base64"),
-      "utf-8"
-    );
 
-    const params = buildRequestParams([csvText], [pdfBase64]);
+    const params = buildRequestParams([csvText], "Test scope", []);
 
     const textBlocks = params.messages[0].content.filter(
       (c) => c.type === "text"

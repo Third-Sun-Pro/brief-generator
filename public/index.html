@@ -671,16 +671,22 @@
       </div>
 
       <div class="upload-area">
-        <label class="upload-label" for="pdf">Project Contract</label>
-        <div class="upload-zone" id="pdf-zone">
+        <label class="upload-label" for="scope">Project Scope</label>
+        <textarea id="scope" name="scope" class="revision-textarea" required
+          placeholder="Paste or type the project scope, deliverables, timeline..." rows="4"></textarea>
+      </div>
+
+      <div class="upload-area">
+        <label class="upload-label" for="notes">Supporting Documents <span class="optional-note">(optional)</span></label>
+        <div class="upload-zone" id="notes-zone">
           <div class="upload-icon">
             <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="6" y="2" width="20" height="28" rx="3" fill="#f2dce0" stroke="#D18E97" stroke-width="1.5"/>
               <path d="M11 12h10M11 16h10M11 20h6" stroke="#D18E97" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
           </div>
-          <p class="upload-text"><strong>Choose PDF file(s)</strong> or drag them here</p>
-          <input type="file" id="pdf" name="pdf" accept=".pdf" multiple required>
+          <p class="upload-text"><strong>Choose file(s)</strong> or drag here — PDF, DOCX, TXT, MD</p>
+          <input type="file" id="notes" name="notes" accept=".pdf,.docx,.txt,.md" multiple>
         </div>
       </div>
 
@@ -854,14 +860,15 @@
 
     function setFormDisabled(disabled) {
       document.getElementById("csv").disabled = disabled;
-      document.getElementById("pdf").disabled = disabled;
+      document.getElementById("scope").disabled = disabled;
+      document.getElementById("notes").disabled = disabled;
       document.getElementById("siteUrl").disabled = disabled;
       btn.disabled = disabled;
       // Make upload zones visually inert
       document.getElementById("csv-zone").style.pointerEvents = disabled ? "none" : "";
-      document.getElementById("pdf-zone").style.pointerEvents = disabled ? "none" : "";
       document.getElementById("csv-zone").style.opacity = disabled ? "0.5" : "";
-      document.getElementById("pdf-zone").style.opacity = disabled ? "0.5" : "";
+      document.getElementById("notes-zone").style.pointerEvents = disabled ? "none" : "";
+      document.getElementById("notes-zone").style.opacity = disabled ? "0.5" : "";
     }
 
     // CSV client-side validation
@@ -891,8 +898,8 @@
       zone.parentElement.appendChild(el);
     }
 
-    // File input display — PDF (no validation needed)
-    document.getElementById("pdf").addEventListener("change", function () {
+    // File input display — Notes (no validation needed)
+    document.getElementById("notes").addEventListener("change", function () {
       const zone = this.closest(".upload-zone");
       if (this.files.length) {
         zone.classList.add("has-file");
@@ -902,6 +909,10 @@
         zone.querySelector(".upload-text").innerHTML =
           '<span class="file-name"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' +
           label + '</span>';
+      } else {
+        zone.classList.remove("has-file");
+        zone.querySelector(".upload-icon").hidden = false;
+        zone.querySelector(".upload-text").innerHTML = '<strong>Choose file(s)</strong> or drag here — PDF, DOCX, TXT, MD';
       }
     });
 
@@ -940,8 +951,9 @@
       e.preventDefault();
 
       const csvFiles = document.getElementById("csv").files;
-      const pdfFiles = document.getElementById("pdf").files;
-      if (!csvFiles.length || !pdfFiles.length) return;
+      const scopeVal = document.getElementById("scope").value.trim();
+      const notesFiles = document.getElementById("notes").files;
+      if (!csvFiles.length || !scopeVal) return;
       if (!csvValid) return;
 
       currentSessionId = null;
@@ -960,7 +972,8 @@
 
       const formData = new FormData();
       for (const file of csvFiles) formData.append("csv", file);
-      for (const file of pdfFiles) formData.append("pdf", file);
+      formData.append("scope", scopeVal);
+      for (const file of notesFiles) formData.append("notes", file);
       const siteUrl = document.getElementById("siteUrl").value.trim();
       if (siteUrl) formData.append("siteUrl", siteUrl);
 

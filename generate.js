@@ -169,9 +169,9 @@ function validateCsv(csvText, label) {
 // ---------------------------------------------------------------------------
 // Shared: build the API request params from inputs
 // ---------------------------------------------------------------------------
-function buildRequestParams(csvTexts, pdfBase64s, siteContext) {
+function buildRequestParams(csvTexts, scopeText, noteFiles, siteContext) {
   const csvArr = Array.isArray(csvTexts) ? csvTexts : [csvTexts];
-  const pdfArr = Array.isArray(pdfBase64s) ? pdfBase64s : [pdfBase64s];
+  const notes = Array.isArray(noteFiles) ? noteFiles : [];
 
   csvArr.forEach((csv, i) => {
     const label = csvArr.length > 1 ? `CSV ${i + 1}` : null;
@@ -187,15 +187,16 @@ function buildRequestParams(csvTexts, pdfBase64s, siteContext) {
     "utf-8"
   );
 
-  const pdfBlocks = pdfArr.map((data, i) => ({
-    type: "document",
-    source: {
-      type: "base64",
-      media_type: "application/pdf",
-      data,
-    },
-    title: pdfArr.length === 1 ? "Project Contract" : `Project Contract ${i + 1}`,
-  }));
+  const noteBlocks = notes.map((note) => {
+    if (note.text) {
+      return { type: "text", text: `${note.title}:\n\n${note.text}` };
+    }
+    return {
+      type: "document",
+      source: { type: "base64", media_type: note.mediaType, data: note.data },
+      title: note.title,
+    };
+  });
 
   const csvBlock = csvArr.length === 1
     ? `Here is the client discovery questionnaire (CSV):\n\n${csvArr[0]}`
@@ -213,7 +214,8 @@ function buildRequestParams(csvTexts, pdfBase64s, siteContext) {
       text: `Here are example briefs to follow for tone, structure, and formatting:\n\n${examples}`,
       cache_control: { type: "ephemeral" },
     },
-    ...pdfBlocks,
+    { type: "text", text: `PROJECT SCOPE:\n\n${scopeText}` },
+    ...noteBlocks,
     { type: "text", text: csvText },
   ];
 
@@ -221,7 +223,7 @@ function buildRequestParams(csvTexts, pdfBase64s, siteContext) {
     contentBlocks.push({ type: "text", text: siteContext });
   }
 
-  let finalInstruction = "Using the contract(s) (PDF) and questionnaire(s) (CSV) provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — synthesize responses into patterns and themes rather than restating every answer. Use short, direct sentences. Bullet points should be one line each. Cut filler words and redundant phrasing. Match the length and density of the examples, not longer. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.";
+  let finalInstruction = "Using the project scope, questionnaire(s) (CSV), and any supporting documents provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — synthesize responses into patterns and themes rather than restating every answer. Use short, direct sentences. Bullet points should be one line each. Cut filler words and redundant phrasing. Match the length and density of the examples, not longer. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.";
 
   if (csvArr.length > 1) {
     const respondentCount = csvArr.length;
@@ -296,9 +298,9 @@ function logUsage(label, usage, durationMs) {
   );
 }
 
-async function generateBrief(csvTexts, pdfBase64s, siteContext) {
+async function generateBrief(csvTexts, scopeText, noteFiles, siteContext) {
   const client = new Anthropic({ maxRetries: 5 });
-  const params = buildRequestParams(csvTexts, pdfBase64s, siteContext);
+  const params = buildRequestParams(csvTexts, scopeText, noteFiles, siteContext);
   const start = Date.now();
   const response = await client.messages.create(params);
   logUsage("generate", response.usage, Date.now() - start);
@@ -311,9 +313,9 @@ async function generateBrief(csvTexts, pdfBase64s, siteContext) {
 // ---------------------------------------------------------------------------
 // generateBriefStream — streaming, used by web server SSE endpoint
 // ---------------------------------------------------------------------------
-async function generateBriefStream(csvTexts, pdfBase64s, siteContext, onChunk) {
+async function generateBriefStream(csvTexts, scopeText, noteFiles, siteContext, onChunk) {
   const client = new Anthropic({ maxRetries: 5 });
-  const params = buildRequestParams(csvTexts, pdfBase64s, siteContext);
+  const params = buildRequestParams(csvTexts, scopeText, noteFiles, siteContext);
   const start = Date.now();
   const stream = client.messages.stream(params);
 

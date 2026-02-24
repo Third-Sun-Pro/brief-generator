@@ -22,7 +22,7 @@ const mockGenerateBrief = vi.fn().mockResolvedValue({
   clientName: "Acme Corp",
 });
 
-const mockGenerateBriefStream = vi.fn().mockImplementation(async (csv, pdf, siteContext, onChunk) => {
+const mockGenerateBriefStream = vi.fn().mockImplementation(async (csv, scope, notes, siteContext, onChunk) => {
   onChunk("streaming chunk");
   return {
     docxBuffer: Buffer.from("fake-docx"),
@@ -94,13 +94,10 @@ function parseSSE(text) {
 
 describe("POST /revise-stream", () => {
   let csvBuffer;
-  let pdfBuffer;
   let authCookie;
 
   beforeAll(async () => {
     csvBuffer = fs.readFileSync(path.join(fixturesDir, "sample.csv"));
-    const pdfBase64 = fs.readFileSync(path.join(fixturesDir, "sample.pdf.base64"), "utf-8");
-    pdfBuffer = Buffer.from(pdfBase64, "base64");
     authCookie = await getAuthCookie(app);
   });
 
@@ -116,7 +113,7 @@ describe("POST /revise-stream", () => {
       .post("/generate-stream")
       .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Test project scope");
 
     expect(res.status).toBe(200);
     const events = parseSSE(res.text);
@@ -171,7 +168,7 @@ describe("POST /revise-stream", () => {
       .post("/generate-stream")
       .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Test project scope");
 
     const genEvents = parseSSE(genRes.text);
     const sessionId = genEvents.find((e) => e.done).sessionId;
@@ -201,7 +198,7 @@ describe("POST /revise-stream", () => {
       .post("/generate-stream")
       .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Test project scope");
 
     const sessionId = parseSSE(genRes.text).find((e) => e.done).sessionId;
 
@@ -233,7 +230,7 @@ describe("POST /revise-stream", () => {
       .post("/generate-stream")
       .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Test project scope");
 
     const sessionId = parseSSE(genRes.text).find((e) => e.done).sessionId;
 

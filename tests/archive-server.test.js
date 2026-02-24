@@ -20,7 +20,7 @@ process.env.ARCHIVE_DIR = tmpDir;
 
 const sampleBrief = "# Creative Brief — Acme Corp\n\nSample brief.";
 
-const mockGenerateBriefStream = vi.fn().mockImplementation(async (csv, pdf, siteContext, onChunk) => {
+const mockGenerateBriefStream = vi.fn().mockImplementation(async (csv, scope, notes, siteContext, onChunk) => {
   onChunk("chunk");
   return {
     docxBuffer: Buffer.from("fake-docx"),
@@ -92,12 +92,9 @@ function parseSSE(text) {
 describe("Archive endpoints", () => {
   let authCookie;
   let csvBuffer;
-  let pdfBuffer;
 
   beforeAll(async () => {
     csvBuffer = fs.readFileSync(path.join(fixturesDir, "sample.csv"));
-    const pdfBase64 = fs.readFileSync(path.join(fixturesDir, "sample.pdf.base64"), "utf-8");
-    pdfBuffer = Buffer.from(pdfBase64, "base64");
     authCookie = await getAuthCookie(app);
   });
 
@@ -133,7 +130,7 @@ describe("Archive endpoints", () => {
       .post("/generate-stream")
       .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Test project scope");
 
     expect(res.status).toBe(200);
 
@@ -153,7 +150,7 @@ describe("Archive endpoints", () => {
       .post("/generate-stream")
       .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Test project scope");
 
     const sessionId = parseSSE(genRes.text).find((e) => e.done).sessionId;
 
@@ -179,7 +176,7 @@ describe("Archive endpoints", () => {
       .post("/generate-stream")
       .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Test project scope");
 
     const archiveRes = await request(app)
       .get("/archive")
@@ -206,7 +203,7 @@ describe("Archive endpoints", () => {
       .post("/generate-stream")
       .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
-      .attach("pdf", pdfBuffer, "test.pdf");
+      .field("scope", "Test project scope");
 
     // Generation should still succeed
     expect(res.status).toBe(200);
