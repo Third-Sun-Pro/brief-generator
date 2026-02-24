@@ -10,12 +10,21 @@ const { scrapeNavigation } = require("./scrape");
 const { addEntry, listEntries, getEntry } = require("./archive");
 
 // ---------------------------------------------------------------------------
+// Structured logger
+// ---------------------------------------------------------------------------
+function log(level, msg, extra = {}) {
+  const entry = { time: new Date().toISOString(), level, msg, ...extra };
+  const out = level === "error" ? process.stderr : process.stdout;
+  out.write(JSON.stringify(entry) + "\n");
+}
+
+// ---------------------------------------------------------------------------
 // Startup validation — fail fast if required env vars are missing
 // ---------------------------------------------------------------------------
 const REQUIRED_ENV = ["APP_PASSWORD", "ANTHROPIC_API_KEY"];
 for (const key of REQUIRED_ENV) {
   if (!process.env[key]) {
-    console.error(`Fatal: ${key} environment variable is not set.`);
+    log("error", `Fatal: ${key} environment variable is not set.`);
     process.exit(1);
   }
 }
@@ -91,12 +100,13 @@ const loginLimiter = isTest
 app.use(cookieParser());
 app.use(express.json());
 
-// Request logger (skip static files)
+// Assign a short request ID and structured request logger (skip static files)
 app.use((req, res, next) => {
+  req.id = crypto.randomUUID().slice(0, 8);
   if (req.method === "GET" && !req.path.startsWith("/auth") && !req.path.startsWith("/archive")) return next();
   const start = Date.now();
   res.on("finish", () => {
-    console.log(`[req] ${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
+    log("info", "request", { reqId: req.id, method: req.method, path: req.path, status: res.statusCode, ms: Date.now() - start });
   });
   next();
 });
@@ -216,23 +226,23 @@ app.post(
       const siteUrl = req.body.siteUrl;
       if (siteUrl && siteUrl.trim()) {
         try {
-          console.log(`Scraping navigation from ${siteUrl}...`);
+          log("info", "Scraping navigation", { reqId: req.id, url: siteUrl });
           siteContext = await scrapeNavigation(siteUrl.trim());
-          console.log("Site navigation scraped successfully.");
+          log("info", "Site navigation scraped", { reqId: req.id });
         } catch (err) {
           scrapeWarning = err.message;
-          console.warn("Site scraping failed (continuing without):", err.message);
+          log("warn", "Site scraping failed", { reqId: req.id, error: err.message });
         }
       }
 
-      console.log(`Generating brief from ${csvFiles.length} CSV(s), scope, and ${noteFiles.length} note(s)...`);
+      log("info", "Generating brief", { reqId: req.id, csvCount: csvFiles.length, noteCount: noteFiles.length });
       const { docxBuffer, markdownText, clientName } = await generateBrief(
         csvTexts,
         scopeText.trim(),
         noteFiles,
         siteContext
       );
-      console.log("Brief generated successfully.");
+      log("info", "Brief generated", { reqId: req.id });
 
       const result = {
         docxBase64: docxBuffer.toString("base64"),
@@ -242,7 +252,7 @@ app.post(
       if (scrapeWarning) result.scrapeWarning = scrapeWarning;
       res.json(result);
     } catch (err) {
-      console.error("Error:", err.message || err);
+      log("error", "Generate failed", { reqId: req.id, error: err.message || String(err) });
       res.status(500).json({ error: cleanErrorMessage(err) });
     }
   }
@@ -279,12 +289,12 @@ app.post(
       const siteUrl = req.body.siteUrl;
       if (siteUrl && siteUrl.trim()) {
         try {
-          console.log(`Scraping navigation from ${siteUrl}...`);
+          log("info", "Scraping navigation", { reqId: req.id, url: siteUrl });
           siteContext = await scrapeNavigation(siteUrl.trim());
-          console.log("Site navigation scraped successfully.");
+          log("info", "Site navigation scraped", { reqId: req.id });
         } catch (err) {
           scrapeWarning = err.message;
-          console.warn("Site scraping failed (continuing without):", err.message);
+          log("warn", "Site scraping failed", { reqId: req.id, error: err.message });
         }
       }
 
@@ -292,7 +302,7 @@ app.post(
         res.write(`data: ${JSON.stringify({ scrapeWarning })}\n\n`);
       }
 
-      console.log(`Streaming brief from ${csvFiles.length} CSV(s), scope, and ${noteFiles.length} note(s)...`);
+      log("info", "Streaming brief", { reqId: req.id, csvCount: csvFiles.length, noteCount: noteFiles.length });
 
       const { docxBuffer, markdownText, clientName, params } = await generateBriefStream(
         csvTexts,
@@ -304,14 +314,14 @@ app.post(
         }
       );
 
-      console.log("Brief generated successfully.");
+      log("info", "Brief generated", { reqId: req.id });
 
       const sessionId = createSession(params, markdownText);
 
       try {
         addEntry({ clientName: clientName || "Untitled", markdown: markdownText,
           docxBase64: docxBuffer.toString("base64"), source: "generate" });
-      } catch (archiveErr) { console.error("Archive save failed:", archiveErr.message); }
+      } catch (archiveErr) { log("error", "Archive save failed", { reqId: req.id, error: archiveErr.message }); }
 
       res.write(`data: ${JSON.stringify({
         done: true,
@@ -323,7 +333,7 @@ app.post(
       })}\n\n`);
       res.end();
     } catch (err) {
-      console.error("Error:", err.message || err);
+      log("error", "Stream generate failed", { reqId: req.id, error: err.message || String(err) });
       res.write(`data: ${JSON.stringify({ error: cleanErrorMessage(err) })}\n\n`);
       res.end();
     }
@@ -351,7 +361,7 @@ app.post("/revise-stream", requireAuth, apiLimiter, async (req, res) => {
   res.setHeader("Connection", "keep-alive");
 
   try {
-    console.log(`Revising brief for session ${sessionId}...`);
+    log("info", "Revising brief", { reqId: req.id, sessionId });
 
     const { docxBuffer, markdownText, clientName } = await reviseBriefStream(
       session.params,
@@ -368,9 +378,9 @@ app.post("/revise-stream", requireAuth, apiLimiter, async (req, res) => {
     try {
       addEntry({ clientName: clientName || "Untitled", markdown: markdownText,
         docxBase64: docxBuffer.toString("base64"), source: "revise" });
-    } catch (archiveErr) { console.error("Archive save failed:", archiveErr.message); }
+    } catch (archiveErr) { log("error", "Archive save failed", { reqId: req.id, error: archiveErr.message }); }
 
-    console.log("Brief revised successfully.");
+    log("info", "Brief revised", { reqId: req.id, sessionId });
 
     res.write(`data: ${JSON.stringify({
       done: true,
@@ -382,7 +392,7 @@ app.post("/revise-stream", requireAuth, apiLimiter, async (req, res) => {
     })}\n\n`);
     res.end();
   } catch (err) {
-    console.error("Revision error:", err.message || err);
+    log("error", "Revision failed", { reqId: req.id, sessionId, error: err.message || String(err) });
     res.write(`data: ${JSON.stringify({ error: cleanErrorMessage(err) })}\n\n`);
     res.end();
   }
@@ -423,6 +433,6 @@ module.exports.sessions = sessions;
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
+    log("info", "Server running", { port: Number(PORT) });
   });
 }
