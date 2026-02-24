@@ -232,7 +232,7 @@ function buildRequestParams(csvTexts, pdfBase64s, siteContext) {
   contentBlocks.push({ type: "text", text: finalInstruction });
 
   return {
-    model: "claude-sonnet-4-6",
+    model: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
     max_tokens: 16000,
     system: [
       {

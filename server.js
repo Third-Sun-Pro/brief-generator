@@ -164,6 +164,7 @@ app.post(
       const pdfBase64s = pdfFiles.map((f) => f.buffer.toString("base64"));
 
       let siteContext = null;
+      let scrapeWarning = null;
       const siteUrl = req.body.siteUrl;
       if (siteUrl && siteUrl.trim()) {
         try {
@@ -171,6 +172,7 @@ app.post(
           siteContext = await scrapeNavigation(siteUrl.trim());
           console.log("Site navigation scraped successfully.");
         } catch (err) {
+          scrapeWarning = err.message;
           console.warn("Site scraping failed (continuing without):", err.message);
         }
       }
@@ -183,11 +185,13 @@ app.post(
       );
       console.log("Brief generated successfully.");
 
-      res.json({
+      const result = {
         docxBase64: docxBuffer.toString("base64"),
         markdown: markdownText,
         clientName: clientName || null,
-      });
+      };
+      if (scrapeWarning) result.scrapeWarning = scrapeWarning;
+      res.json(result);
     } catch (err) {
       console.error("Error:", err.message || err);
       res.status(500).json({ error: cleanErrorMessage(err) });
@@ -222,6 +226,7 @@ app.post(
       const pdfBase64s = pdfFiles.map((f) => f.buffer.toString("base64"));
 
       let siteContext = null;
+      let scrapeWarning = null;
       const siteUrl = req.body.siteUrl;
       if (siteUrl && siteUrl.trim()) {
         try {
@@ -229,8 +234,13 @@ app.post(
           siteContext = await scrapeNavigation(siteUrl.trim());
           console.log("Site navigation scraped successfully.");
         } catch (err) {
+          scrapeWarning = err.message;
           console.warn("Site scraping failed (continuing without):", err.message);
         }
+      }
+
+      if (scrapeWarning) {
+        res.write(`data: ${JSON.stringify({ scrapeWarning })}\n\n`);
       }
 
       console.log(`Streaming brief from ${csvFiles.length} CSV(s) and ${pdfFiles.length} PDF(s)...`);

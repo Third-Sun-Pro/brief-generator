@@ -55,6 +55,7 @@ async function scrapeNavigation(url) {
       if (!text) return;
       if (href === "#" || href.startsWith("javascript:")) return;
       if (seen.has(href)) return;
+      if (links.length >= 50) return;
 
       seen.add(href);
       links.push({ text, href });
