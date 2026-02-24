@@ -292,6 +292,7 @@ app.post(
         markdown: markdownText,
         clientName: clientName || null,
         sessionId,
+        sessionTtl: SESSION_TTL,
       })}\n\n`);
       res.end();
     } catch (err) {
@@ -350,6 +351,7 @@ app.post("/revise-stream", requireAuth, apiLimiter, async (req, res) => {
       markdown: markdownText,
       clientName: clientName || null,
       sessionId,
+      sessionTtl: SESSION_TTL,
     })}\n\n`);
     res.end();
   } catch (err) {

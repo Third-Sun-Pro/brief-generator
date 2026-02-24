@@ -411,6 +411,31 @@
       font-weight: 500;
     }
 
+    .session-expiry {
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-top: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .session-expiry.expiry-ok {
+      color: #9a8a6e;
+    }
+
+    .session-expiry.expiry-warn {
+      color: var(--gold);
+      background: #faf5e8;
+      border: 1px solid #e8d9a8;
+    }
+
+    .session-expiry.expiry-expired {
+      color: var(--orange);
+      background: #f9eeea;
+      border: 1px solid #e8d0c4;
+    }
+
     .archive-toggle {
       width: 100%;
       padding: 0.75rem;
@@ -681,6 +706,7 @@
         placeholder="e.g. Make the tone more formal, add more detail to the Goals section..."
         rows="3"></textarea>
       <button type="button" id="revise-btn" class="revise-btn">Revise Brief</button>
+      <div id="session-expiry" class="session-expiry" hidden></div>
     </div>
     <div id="warning" class="warning" hidden></div>
     <div id="error" class="error" hidden></div>
@@ -769,6 +795,47 @@
     const reviseBtn = document.getElementById("revise-btn");
     let currentSessionId = null;
     let timerInterval = null;
+    let sessionExpiryInterval = null;
+    const sessionExpiryEl = document.getElementById("session-expiry");
+
+    function startSessionExpiry(ttlMs) {
+      clearSessionExpiry();
+      const expiresAt = Date.now() + ttlMs;
+      const warnAt = ttlMs - 5 * 60 * 1000; // warn with 5 min left
+
+      function tick() {
+        const remaining = expiresAt - Date.now();
+        if (remaining <= 0) {
+          clearSessionExpiry();
+          currentSessionId = null;
+          sessionExpiryEl.className = "session-expiry expiry-expired";
+          sessionExpiryEl.textContent = "Revision session expired. Generate a new brief to revise.";
+          sessionExpiryEl.hidden = false;
+          reviseBtn.disabled = true;
+          feedbackEl.disabled = true;
+          return;
+        }
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        const timeStr = mins + ":" + String(secs).padStart(2, "0");
+        if (remaining <= 5 * 60 * 1000) {
+          sessionExpiryEl.className = "session-expiry expiry-warn";
+          sessionExpiryEl.textContent = "Session expires in " + timeStr + " — revise soon or generate a new brief.";
+        } else {
+          sessionExpiryEl.className = "session-expiry expiry-ok";
+          sessionExpiryEl.textContent = "Session expires in " + timeStr;
+        }
+        sessionExpiryEl.hidden = false;
+      }
+
+      tick();
+      sessionExpiryInterval = setInterval(tick, 1000);
+    }
+
+    function clearSessionExpiry() {
+      if (sessionExpiryInterval) { clearInterval(sessionExpiryInterval); sessionExpiryInterval = null; }
+      sessionExpiryEl.hidden = true;
+    }
 
     function startTimer(label) {
       const start = Date.now();
@@ -878,6 +945,7 @@
       if (!csvValid) return;
 
       currentSessionId = null;
+      clearSessionExpiry();
       revisionArea.hidden = true;
       feedbackEl.value = "";
       downloadsEl.hidden = true;
@@ -962,6 +1030,9 @@
               currentSessionId = json.sessionId;
               statusEl.innerHTML = "Done!";
               revisionArea.hidden = false;
+              feedbackEl.disabled = false;
+              reviseBtn.disabled = false;
+              if (json.sessionTtl) startSessionExpiry(json.sessionTtl);
               continue;
             }
 
@@ -1069,6 +1140,7 @@
               downloadsEl.hidden = false;
               statusEl.innerHTML = "Done!";
               feedbackEl.value = "";
+              if (json.sessionTtl) startSessionExpiry(json.sessionTtl);
               continue;
             }
 

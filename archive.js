@@ -25,8 +25,10 @@ function writeArchive(entries) {
   fs.writeFileSync(ARCHIVE_PATH, JSON.stringify(entries, null, 2));
 }
 
+const MAX_ENTRIES = 50;
+
 function addEntry({ clientName, markdown, docxBase64, source }) {
-  const entries = readArchive();
+  let entries = readArchive();
   const entry = {
     id: crypto.randomUUID(),
     clientName,
@@ -36,6 +38,9 @@ function addEntry({ clientName, markdown, docxBase64, source }) {
     createdAt: new Date().toISOString(),
   };
   entries.push(entry);
+  if (entries.length > MAX_ENTRIES) {
+    entries = entries.slice(entries.length - MAX_ENTRIES);
+  }
   writeArchive(entries);
   return entry;
 }

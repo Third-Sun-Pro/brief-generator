@@ -92,4 +92,15 @@ describe("archive.js", () => {
     const { getEntry } = loadArchive();
     expect(getEntry("nonexistent-id")).toBeNull();
   });
+
+  it("addEntry caps at 50 entries, dropping oldest", () => {
+    const { addEntry, readArchive } = loadArchive();
+    for (let i = 0; i < 55; i++) {
+      addEntry({ clientName: `Client ${i}`, markdown: "m", docxBase64: "d", source: "generate" });
+    }
+    const entries = readArchive();
+    expect(entries).toHaveLength(50);
+    expect(entries[0].clientName).toBe("Client 5");
+    expect(entries[49].clientName).toBe("Client 54");
+  });
 });
