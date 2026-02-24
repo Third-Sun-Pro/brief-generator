@@ -661,7 +661,7 @@
         <input type="password" id="login-password" class="url-input" placeholder="Enter team password" required autofocus>
         <button type="submit" class="login-btn" id="login-btn">Sign In</button>
       </form>
-      <div id="login-error" class="error" hidden></div>
+      <div id="login-error" class="error" role="alert" tabindex="-1" hidden></div>
     </div>
   </div>
 
@@ -685,7 +685,8 @@
             </svg>
           </div>
           <p class="upload-text"><strong>Choose CSV file(s)</strong> or drag them here</p>
-          <input type="file" id="csv" name="csv" accept=".csv" multiple required>
+          <input type="file" id="csv" name="csv" accept=".csv" multiple required
+            aria-describedby="csv-error">
         </div>
       </div>
 
@@ -721,7 +722,7 @@
       <button type="button" id="cancel-btn" class="cancel-btn" hidden>Cancel</button>
     </form>
 
-    <div id="status" class="status" hidden></div>
+    <div id="status" class="status" aria-live="polite" hidden></div>
     <div id="preview-label" class="preview-label" hidden>Live Preview</div>
     <div id="preview" class="preview" hidden></div>
     <div id="downloads" class="downloads" hidden></div>
@@ -730,12 +731,12 @@
       <label class="upload-label" for="feedback">Revise Brief</label>
       <textarea id="feedback" class="revision-textarea"
         placeholder="e.g. Make the tone more formal, add more detail to the Goals section..."
-        rows="3"></textarea>
+        rows="3" aria-describedby="error"></textarea>
       <button type="button" id="revise-btn" class="revise-btn">Revise Brief</button>
-      <div id="session-expiry" class="session-expiry" hidden></div>
+      <div id="session-expiry" class="session-expiry" role="status" aria-live="polite" hidden></div>
     </div>
-    <div id="warning" class="warning" hidden></div>
-    <div id="error" class="error" hidden></div>
+    <div id="warning" class="warning" role="status" hidden></div>
+    <div id="error" class="error" role="alert" tabindex="-1" hidden></div>
 
     <button type="button" id="archive-toggle" class="archive-toggle">
       <svg viewBox="0 0 24 24"><path d="M20 6H4V4h16v2zm-1 2H5c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h14c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-5 7H10v-2h4v2z"/></svg>
@@ -794,6 +795,7 @@
       } catch (err) {
         loginError.textContent = err.message;
         loginError.hidden = false;
+        loginPassword.focus();
       } finally {
         loginBtn.disabled = false;
       }
@@ -944,6 +946,8 @@
 
     function clearUploadError(zone) {
       zone.classList.remove("has-error");
+      const input = zone.querySelector("input[type='file']");
+      if (input) input.removeAttribute("aria-invalid");
       const existing = zone.parentElement.querySelector(".upload-error");
       if (existing) existing.remove();
     }
@@ -952,8 +956,12 @@
       clearUploadError(zone);
       zone.classList.add("has-error");
       zone.classList.remove("has-file");
+      const input = zone.querySelector("input[type='file']");
+      if (input) input.setAttribute("aria-invalid", "true");
       const el = document.createElement("p");
       el.className = "upload-error";
+      el.id = (input && input.id ? input.id : "upload") + "-error";
+      el.role = "alert";
       el.textContent = message;
       zone.parentElement.appendChild(el);
     }
@@ -1098,6 +1106,7 @@
         } else {
           errorEl.textContent = err.message;
           errorEl.hidden = false;
+          errorEl.focus();
           statusEl.hidden = true;
         }
       } finally {
@@ -1112,9 +1121,13 @@
     reviseBtn.addEventListener("click", async () => {
       const feedback = feedbackEl.value.trim();
       if (!feedback) {
+        feedbackEl.setAttribute("aria-invalid", "true");
         feedbackEl.focus();
         feedbackEl.style.borderColor = "var(--orange)";
-        setTimeout(() => { feedbackEl.style.borderColor = ""; }, 2000);
+        setTimeout(() => {
+          feedbackEl.style.borderColor = "";
+          feedbackEl.removeAttribute("aria-invalid");
+        }, 2000);
         return;
       }
       if (!currentSessionId) {
@@ -1189,6 +1202,7 @@
         } else {
           errorEl.textContent = err.message;
           errorEl.hidden = false;
+          errorEl.focus();
           statusEl.hidden = true;
         }
       } finally {
