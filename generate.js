@@ -221,10 +221,15 @@ function buildRequestParams(csvTexts, pdfBase64s, siteContext) {
     contentBlocks.push({ type: "text", text: siteContext });
   }
 
-  contentBlocks.push({
-    type: "text",
-    text: "Using the contract(s) (PDF) and questionnaire(s) (CSV) provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — synthesize responses into patterns and themes rather than restating every answer. Use short, direct sentences. Bullet points should be one line each. Cut filler words and redundant phrasing. Match the length and density of the examples, not longer. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.",
-  });
+  let finalInstruction = "Using the contract(s) (PDF) and questionnaire(s) (CSV) provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — synthesize responses into patterns and themes rather than restating every answer. Use short, direct sentences. Bullet points should be one line each. Cut filler words and redundant phrasing. Match the length and density of the examples, not longer. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.";
+
+  if (csvArr.length > 1) {
+    const respondentCount = csvArr.length;
+    const minRespondents = Math.max(1, Math.ceil(respondentCount * 0.3));
+    finalInstruction += `\n\nIMPORTANT — Consensus threshold: There are ${respondentCount} respondents. Only include ideas, preferences, or details in the brief if they are mentioned by at least ${minRespondents} respondent${minRespondents === 1 ? "" : "s"} (30% of ${respondentCount}). Drop any point that fails to meet this threshold.`;
+  }
+
+  contentBlocks.push({ type: "text", text: finalInstruction });
 
   return {
     model: "claude-sonnet-4-6",
@@ -346,4 +351,4 @@ async function reviseBriefStream(originalParams, assistantMarkdown, feedback, on
   return { docxBuffer, markdownText, clientName };
 }
 
-module.exports = { generateBrief, generateBriefStream, reviseBriefStream, buildRevisionParams, extractClientName, validateCsv, parseInlineFormatting, parseMarkdownToDocxChildren };
+module.exports = { generateBrief, generateBriefStream, reviseBriefStream, buildRequestParams, buildRevisionParams, extractClientName, validateCsv, parseInlineFormatting, parseMarkdownToDocxChildren };

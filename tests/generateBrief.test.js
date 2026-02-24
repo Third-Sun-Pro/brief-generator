@@ -35,7 +35,7 @@ require.cache[sdkPath] = {
 // Clear generate.js from cache first to ensure fresh load with mock
 const generatePath = require.resolve("../generate");
 delete require.cache[generatePath];
-const { generateBrief } = require("../generate");
+const { generateBrief, buildRequestParams } = require("../generate");
 
 const fixturesDir = path.join(__dirname, "fixtures");
 
@@ -112,5 +112,50 @@ describe("generateBrief", () => {
       (c) => c.type === "document"
     );
     expect(docBlocks).toHaveLength(2);
+  });
+
+  it("multi-CSV includes consensus threshold instruction", () => {
+    const csvText = fs.readFileSync(
+      path.join(fixturesDir, "sample.csv"),
+      "utf-8"
+    );
+    const pdfBase64 = fs.readFileSync(
+      path.join(fixturesDir, "sample.pdf.base64"),
+      "utf-8"
+    );
+
+    const params = buildRequestParams(
+      [csvText, csvText, csvText, csvText],
+      [pdfBase64]
+    );
+
+    const textBlocks = params.messages[0].content.filter(
+      (c) => c.type === "text"
+    );
+    const finalText = textBlocks[textBlocks.length - 1].text;
+
+    expect(finalText).toContain("4 respondents");
+    expect(finalText).toContain("at least 2 respondents");
+    expect(finalText).toContain("Consensus threshold");
+  });
+
+  it("single CSV excludes consensus threshold instruction", () => {
+    const csvText = fs.readFileSync(
+      path.join(fixturesDir, "sample.csv"),
+      "utf-8"
+    );
+    const pdfBase64 = fs.readFileSync(
+      path.join(fixturesDir, "sample.pdf.base64"),
+      "utf-8"
+    );
+
+    const params = buildRequestParams([csvText], [pdfBase64]);
+
+    const textBlocks = params.messages[0].content.filter(
+      (c) => c.type === "text"
+    );
+    const finalText = textBlocks[textBlocks.length - 1].text;
+
+    expect(finalText).not.toContain("Consensus threshold");
   });
 });

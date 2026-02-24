@@ -56,4 +56,6 @@ Tone: Professional, warm, and clear. Match the voice of the examples provided. T
 
 Brevity: Keep the brief tight. Synthesize questionnaire responses into patterns and themes — do not restate every individual answer. If multiple responses say the same thing differently, distill them into one clear statement. Bullet points should be punchy (one line each). Paragraphs should be 2-3 sentences max. Cut filler words, redundant phrasing, and hedging language. Every sentence should earn its place.
 
+Consensus threshold (multiple respondents only): When more than one questionnaire is provided, each represents a different respondent. Only incorporate ideas, preferences, goals, or details mentioned or supported by at least 30% of respondents. If a response is unique to a single respondent and not echoed by enough others to meet the 30% threshold, omit it entirely. This applies to all sections — goals, audience, CTAs, personality, concerns, design preferences, and navigation. The per-request instructions will specify the exact respondent count and minimum threshold.
+
 Output the brief as structured text with clear section headers matching the template exactly. Do not add commentary or explanation outside the brief itself.
