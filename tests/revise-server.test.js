@@ -8,6 +8,10 @@ import request from "supertest";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
+// Set env vars before loading server
+process.env.APP_PASSWORD = "test-password";
+process.env.NODE_ENV = "test";
+
 const sampleBrief = "# Creative Brief — Acme Corp\n\nOriginal brief content.";
 const revisedBrief = "# Creative Brief — Acme Corp\n\nRevised brief content.";
 
@@ -72,6 +76,14 @@ const app = require("../server");
 
 const fixturesDir = path.join(__dirname, "fixtures");
 
+async function getAuthCookie(appInstance) {
+  const res = await request(appInstance)
+    .post("/login")
+    .send({ password: "test-password" });
+  const setCookie = res.headers["set-cookie"];
+  return setCookie[0].split(";")[0];
+}
+
 function parseSSE(text) {
   return text
     .split("\n")
@@ -82,11 +94,13 @@ function parseSSE(text) {
 describe("POST /revise-stream", () => {
   let csvBuffer;
   let pdfBuffer;
+  let authCookie;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     csvBuffer = fs.readFileSync(path.join(fixturesDir, "sample.csv"));
     const pdfBase64 = fs.readFileSync(path.join(fixturesDir, "sample.pdf.base64"), "utf-8");
     pdfBuffer = Buffer.from(pdfBase64, "base64");
+    authCookie = await getAuthCookie(app);
   });
 
   beforeEach(() => {
@@ -99,6 +113,7 @@ describe("POST /revise-stream", () => {
   it("/generate-stream done event includes sessionId", async () => {
     const res = await request(app)
       .post("/generate-stream")
+      .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
       .attach("pdf", pdfBuffer, "test.pdf");
 
@@ -113,6 +128,7 @@ describe("POST /revise-stream", () => {
   it("returns 400 when sessionId is missing", async () => {
     const res = await request(app)
       .post("/revise-stream")
+      .set("Cookie", authCookie)
       .send({ feedback: "make it shorter" });
 
     expect(res.status).toBe(400);
@@ -122,6 +138,7 @@ describe("POST /revise-stream", () => {
   it("returns 400 when feedback is missing", async () => {
     const res = await request(app)
       .post("/revise-stream")
+      .set("Cookie", authCookie)
       .send({ sessionId: "some-id" });
 
     expect(res.status).toBe(400);
@@ -131,6 +148,7 @@ describe("POST /revise-stream", () => {
   it("returns 400 when feedback is empty whitespace", async () => {
     const res = await request(app)
       .post("/revise-stream")
+      .set("Cookie", authCookie)
       .send({ sessionId: "some-id", feedback: "   " });
 
     expect(res.status).toBe(400);
@@ -139,6 +157,7 @@ describe("POST /revise-stream", () => {
   it("returns 404 for unknown sessionId", async () => {
     const res = await request(app)
       .post("/revise-stream")
+      .set("Cookie", authCookie)
       .send({ sessionId: "nonexistent-id", feedback: "make it shorter" });
 
     expect(res.status).toBe(404);
@@ -149,6 +168,7 @@ describe("POST /revise-stream", () => {
     // Step 1: Generate to create a session
     const genRes = await request(app)
       .post("/generate-stream")
+      .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
       .attach("pdf", pdfBuffer, "test.pdf");
 
@@ -158,6 +178,7 @@ describe("POST /revise-stream", () => {
     // Step 2: Revise using the session
     const revRes = await request(app)
       .post("/revise-stream")
+      .set("Cookie", authCookie)
       .send({ sessionId, feedback: "make it more formal" });
 
     expect(revRes.status).toBe(200);
@@ -177,6 +198,7 @@ describe("POST /revise-stream", () => {
     // Generate
     const genRes = await request(app)
       .post("/generate-stream")
+      .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
       .attach("pdf", pdfBuffer, "test.pdf");
 
@@ -185,6 +207,7 @@ describe("POST /revise-stream", () => {
     // First revision
     const rev1 = await request(app)
       .post("/revise-stream")
+      .set("Cookie", authCookie)
       .send({ sessionId, feedback: "first revision" });
 
     expect(rev1.status).toBe(200);
@@ -193,6 +216,7 @@ describe("POST /revise-stream", () => {
     // Second revision
     const rev2 = await request(app)
       .post("/revise-stream")
+      .set("Cookie", authCookie)
       .send({ sessionId, feedback: "second revision" });
 
     expect(rev2.status).toBe(200);
@@ -206,6 +230,7 @@ describe("POST /revise-stream", () => {
     // Generate to create a session
     const genRes = await request(app)
       .post("/generate-stream")
+      .set("Cookie", authCookie)
       .attach("csv", csvBuffer, "test.csv")
       .attach("pdf", pdfBuffer, "test.pdf");
 
@@ -217,6 +242,7 @@ describe("POST /revise-stream", () => {
 
     const res = await request(app)
       .post("/revise-stream")
+      .set("Cookie", authCookie)
       .send({ sessionId, feedback: "too late" });
 
     expect(res.status).toBe(404);

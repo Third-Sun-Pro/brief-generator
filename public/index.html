@@ -399,10 +399,91 @@
       letter-spacing: normal;
       color: #9a8a6e;
     }
+
+    .hidden { display: none !important; }
+
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--cream-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 2rem;
+    }
+
+    .login-card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 4px 32px rgba(91, 59, 30, 0.10), 0 1px 4px rgba(91, 59, 30, 0.06);
+      padding: 3rem;
+      max-width: 400px;
+      width: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 5px;
+      background: linear-gradient(90deg, var(--pink), var(--green), var(--cream), var(--pink));
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 0.9rem;
+      background: var(--pink);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      margin-top: 0.75rem;
+      letter-spacing: 0.01em;
+    }
+
+    .login-btn:hover {
+      background: #c07a83;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(209, 142, 151, 0.35);
+    }
+
+    .login-btn:disabled {
+      background: #d4b8bc;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div id="login-overlay" class="login-overlay">
+    <div class="login-card">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 5.92A6 6 0 0 1 12 2zm0 3.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" fill="none"/><circle cx="12" cy="12" r="4" fill="#fff"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <h1>Brief Generator</h1>
+      </div>
+      <p class="subtitle">Third Sun Productions</p>
+      <form id="login-form">
+        <label class="upload-label" for="login-password">Password</label>
+        <input type="password" id="login-password" class="url-input" placeholder="Enter team password" required autofocus>
+        <button type="submit" class="login-btn" id="login-btn">Sign In</button>
+      </form>
+      <div id="login-error" class="error" hidden></div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="main-card">
     <div class="logo">
       <div class="logo-icon">
         <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 5.92A6 6 0 0 1 12 2zm0 3.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" fill="none"/><circle cx="12" cy="12" r="4" fill="#fff"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
@@ -467,6 +548,69 @@
   </div>
 
   <script>
+    // -----------------------------------------------------------------------
+    // Auth
+    // -----------------------------------------------------------------------
+    const loginOverlay = document.getElementById("login-overlay");
+    const mainCard = document.getElementById("main-card");
+    const loginForm = document.getElementById("login-form");
+    const loginBtn = document.getElementById("login-btn");
+    const loginError = document.getElementById("login-error");
+    const loginPassword = document.getElementById("login-password");
+
+    function showLogin() {
+      loginOverlay.classList.remove("hidden");
+      mainCard.classList.add("hidden");
+      loginPassword.value = "";
+      loginError.hidden = true;
+    }
+
+    function showApp() {
+      loginOverlay.classList.add("hidden");
+      mainCard.classList.remove("hidden");
+    }
+
+    // Check auth on page load
+    (async () => {
+      try {
+        const res = await fetch("/auth-check");
+        const data = await res.json();
+        if (data.authenticated) showApp();
+      } catch (_) { /* show login by default */ }
+    })();
+
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      loginBtn.disabled = true;
+      loginError.hidden = true;
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: loginPassword.value }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Login failed");
+        }
+        showApp();
+      } catch (err) {
+        loginError.textContent = err.message;
+        loginError.hidden = false;
+      } finally {
+        loginBtn.disabled = false;
+      }
+    });
+
+    // Helper: handle 401 from any fetch
+    function handle401(res) {
+      if (res.status === 401) {
+        showLogin();
+        return true;
+      }
+      return false;
+    }
+
     const form = document.getElementById("form");
     const btn = document.getElementById("btn");
     const statusEl = document.getElementById("status");
@@ -581,6 +725,7 @@
       try {
         const res = await fetch("/generate-stream", { method: "POST", body: formData });
 
+        if (handle401(res)) return;
         if (!res.ok) {
           const data = await res.json();
           throw new Error(data.error || "Server error");
@@ -689,6 +834,7 @@
           body: JSON.stringify({ sessionId: currentSessionId, feedback }),
         });
 
+        if (handle401(res)) return;
         if (!res.ok) {
           const data = await res.json();
           throw new Error(data.error || "Server error");

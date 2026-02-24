@@ -3,14 +3,104 @@ const express = require("express");
 const multer = require("multer");
 const crypto = require("crypto");
 const path = require("path");
+const cookieParser = require("cookie-parser");
+const rateLimit = require("express-rate-limit");
 const { generateBrief, generateBriefStream, reviseBriefStream } = require("./generate");
 const { scrapeNavigation } = require("./scrape");
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
+const APP_PASSWORD = process.env.APP_PASSWORD || "";
+const AUTH_SECRET = APP_PASSWORD; // used as HMAC key
+
+// ---------------------------------------------------------------------------
+// Auth token helpers — HMAC-SHA256 signed cookies
+// ---------------------------------------------------------------------------
+function createAuthToken() {
+  const timestamp = Date.now().toString();
+  const hmac = crypto.createHmac("sha256", AUTH_SECRET).update(timestamp).digest("hex");
+  return `${timestamp}.${hmac}`;
+}
+
+function verifyAuthToken(token) {
+  if (!token || !AUTH_SECRET) return false;
+  const parts = token.split(".");
+  if (parts.length !== 2) return false;
+  const [timestamp, signature] = parts;
+  const expected = crypto.createHmac("sha256", AUTH_SECRET).update(timestamp).digest("hex");
+  if (expected.length !== signature.length) return false;
+  const valid = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  if (!valid) return false;
+  // 24-hour expiry
+  const age = Date.now() - parseInt(timestamp, 10);
+  return age < 24 * 60 * 60 * 1000;
+}
+
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
+function requireAuth(req, res, next) {
+  const token = req.cookies && req.cookies.auth_token;
+  if (!verifyAuthToken(token)) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+  next();
+}
+
+const isTest = process.env.NODE_ENV === "test";
+
+const apiLimiter = isTest
+  ? (_req, _res, next) => next()
+  : rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 10,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: "Too many requests. Please try again later." },
+    });
+
+const loginLimiter = isTest
+  ? (_req, _res, next) => next()
+  : rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 5,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: "Too many login attempts. Please try again later." },
+    });
+
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
+
+// ---------------------------------------------------------------------------
+// Auth endpoints
+// ---------------------------------------------------------------------------
+app.post("/login", loginLimiter, (req, res) => {
+  const { password } = req.body;
+  if (password !== APP_PASSWORD) {
+    return res.status(401).json({ error: "Invalid password." });
+  }
+  const token = createAuthToken();
+  res.cookie("auth_token", token, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 24 * 60 * 60 * 1000,
+  });
+  res.json({ success: true });
+});
+
+app.get("/auth-check", (req, res) => {
+  const token = req.cookies && req.cookies.auth_token;
+  res.json({ authenticated: verifyAuthToken(token) });
+});
+
+app.post("/logout", (_req, res) => {
+  res.clearCookie("auth_token");
+  res.json({ success: true });
+});
 
 // ---------------------------------------------------------------------------
 // In-memory session store for revision mode
@@ -47,6 +137,8 @@ cleanupInterval.unref();
 
 app.post(
   "/generate",
+  requireAuth,
+  apiLimiter,
   upload.fields([
     { name: "csv", maxCount: 10 },
     { name: "pdf", maxCount: 10 },
@@ -99,6 +191,8 @@ app.post(
 
 app.post(
   "/generate-stream",
+  requireAuth,
+  apiLimiter,
   upload.fields([
     { name: "csv", maxCount: 10 },
     { name: "pdf", maxCount: 10 },
@@ -164,7 +258,7 @@ app.post(
   }
 );
 
-app.post("/revise-stream", async (req, res) => {
+app.post("/revise-stream", requireAuth, apiLimiter, async (req, res) => {
   const { sessionId, feedback } = req.body;
 
   if (!sessionId || !feedback || !feedback.trim()) {
