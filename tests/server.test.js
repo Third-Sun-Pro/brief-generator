@@ -192,3 +192,23 @@ describe("Authentication", () => {
     expect(res.body).toEqual({ authenticated: false });
   });
 });
+
+describe("File size limits", () => {
+  let authCookie;
+
+  beforeAll(async () => {
+    authCookie = await getAuthCookie(app);
+  });
+
+  it("returns 413 when a file exceeds 20 MB", async () => {
+    const oversizedBuffer = Buffer.alloc(21 * 1024 * 1024, "x");
+    const res = await request(app)
+      .post("/generate")
+      .set("Cookie", authCookie)
+      .attach("csv", Buffer.from("a,b\n1,2"), "test.csv")
+      .attach("pdf", oversizedBuffer, "huge.pdf");
+
+    expect(res.status).toBe(413);
+    expect(res.body.error).toMatch(/too large/i);
+  });
+});

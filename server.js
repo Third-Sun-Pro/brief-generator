@@ -9,7 +9,13 @@ const { generateBrief, generateBriefStream, reviseBriefStream } = require("./gen
 const { scrapeNavigation } = require("./scrape");
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20 MB per file
+    files: 20,
+  },
+});
 
 const APP_PASSWORD = process.env.APP_PASSWORD || "";
 const AUTH_SECRET = APP_PASSWORD; // used as HMAC key
@@ -317,6 +323,14 @@ function cleanErrorMessage(err) {
   if (err.status >= 500) return "The AI service is temporarily unavailable. Please try again.";
   return err.message || "Something went wrong.";
 }
+
+// Multer file-size error handler
+app.use((err, _req, res, next) => {
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({ error: "File too large. Maximum size is 20 MB per file." });
+  }
+  next(err);
+});
 
 module.exports = app;
 module.exports.sessions = sessions;
