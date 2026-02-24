@@ -622,6 +622,34 @@
     const feedbackEl = document.getElementById("feedback");
     const reviseBtn = document.getElementById("revise-btn");
     let currentSessionId = null;
+    let timerInterval = null;
+
+    function startTimer(label) {
+      const start = Date.now();
+      statusEl.hidden = false;
+      function tick() {
+        const elapsed = Math.floor((Date.now() - start) / 1000);
+        statusEl.innerHTML = '<span class="spinner"></span>' + label + " (" + elapsed + "s)";
+      }
+      tick();
+      timerInterval = setInterval(tick, 1000);
+    }
+
+    function stopTimer() {
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    }
+
+    function setFormDisabled(disabled) {
+      document.getElementById("csv").disabled = disabled;
+      document.getElementById("pdf").disabled = disabled;
+      document.getElementById("siteUrl").disabled = disabled;
+      btn.disabled = disabled;
+      // Make upload zones visually inert
+      document.getElementById("csv-zone").style.pointerEvents = disabled ? "none" : "";
+      document.getElementById("pdf-zone").style.pointerEvents = disabled ? "none" : "";
+      document.getElementById("csv-zone").style.opacity = disabled ? "0.5" : "";
+      document.getElementById("pdf-zone").style.opacity = disabled ? "0.5" : "";
+    }
 
     // CSV client-side validation
     let csvValid = false;
@@ -712,9 +740,8 @@
       previewEl.hidden = true;
       previewLabel.hidden = true;
       previewEl.textContent = "";
-      btn.disabled = true;
-      statusEl.hidden = false;
-      statusEl.innerHTML = '<span class="spinner"></span>Generating brief...';
+      setFormDisabled(true);
+      startTimer("Generating brief...");
 
       const formData = new FormData();
       for (const file of csvFiles) formData.append("csv", file);
@@ -796,7 +823,8 @@
         errorEl.hidden = false;
         statusEl.hidden = true;
       } finally {
-        btn.disabled = false;
+        stopTimer();
+        setFormDisabled(false);
       }
     });
 
@@ -823,9 +851,8 @@
       previewLabel.textContent = "Revised Preview";
       previewEl.hidden = false;
       reviseBtn.disabled = true;
-      btn.disabled = true;
-      statusEl.hidden = false;
-      statusEl.innerHTML = '<span class="spinner"></span>Revising brief...';
+      setFormDisabled(true);
+      startTimer("Revising brief...");
 
       try {
         const res = await fetch("/revise-stream", {
@@ -903,8 +930,9 @@
         errorEl.hidden = false;
         statusEl.hidden = true;
       } finally {
+        stopTimer();
         reviseBtn.disabled = false;
-        btn.disabled = false;
+        setFormDisabled(false);
       }
     });
   </script>
