@@ -1320,6 +1320,7 @@
     // Drag-and-drop visual feedback
     document.querySelectorAll(".upload-zone").forEach((zone) => {
       let dragCounter = 0;
+      const input = zone.querySelector("input[type='file']");
       zone.addEventListener("dragenter", (e) => {
         e.preventDefault();
         dragCounter++;
@@ -1339,6 +1340,10 @@
         e.preventDefault();
         dragCounter = 0;
         zone.classList.remove("dragover");
+        if (e.dataTransfer.files.length && input) {
+          input.files = e.dataTransfer.files;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        }
       });
     });
 
