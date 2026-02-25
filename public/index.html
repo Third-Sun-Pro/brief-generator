@@ -363,6 +363,19 @@
       cursor: not-allowed;
     }
 
+    .version-browse {
+      background: transparent !important;
+      color: #9a8a6e !important;
+      font-size: 0.78rem !important;
+      text-decoration: underline;
+    }
+
+    .version-browse:hover {
+      color: var(--brown) !important;
+      background: transparent !important;
+      transform: none !important;
+    }
+
     .preview-label {
       font-size: 0.75rem;
       font-weight: 600;
@@ -901,9 +914,10 @@
     <div id="preview" class="preview" hidden></div>
     <div id="downloads" class="downloads" hidden></div>
     <div id="version-nav" class="version-nav" hidden>
-      <button type="button" id="version-prev">&larr; Prev</button>
-      <span id="version-label"></span>
-      <button type="button" id="version-next">Next &rarr;</button>
+      <button type="button" id="version-browse" class="version-browse">&larr; Previous versions</button>
+      <button type="button" id="version-prev" hidden>&larr; Prev</button>
+      <span id="version-label" hidden></span>
+      <button type="button" id="version-next" hidden>Next &rarr;</button>
     </div>
     <div id="commonalities-section" class="commonalities-section" hidden>
       <button type="button" id="commonalities-toggle" class="commonalities-toggle">
@@ -1030,6 +1044,7 @@
     const versionLabel = document.getElementById("version-label");
     const versionPrev = document.getElementById("version-prev");
     const versionNext = document.getElementById("version-next");
+    const versionBrowse = document.getElementById("version-browse");
     let briefVersions = [];
     let currentVersionIndex = -1;
 
@@ -1039,9 +1054,15 @@
         return;
       }
       versionNav.hidden = false;
-      versionLabel.textContent = "Version " + (currentVersionIndex + 1) + " of " + briefVersions.length;
-      versionPrev.disabled = currentVersionIndex === 0;
-      versionNext.disabled = currentVersionIndex === briefVersions.length - 1;
+      const onLatest = currentVersionIndex === briefVersions.length - 1;
+      versionBrowse.hidden = !onLatest;
+      versionPrev.hidden = onLatest;
+      versionLabel.hidden = onLatest;
+      versionNext.hidden = onLatest;
+      if (!onLatest) {
+        versionLabel.textContent = "Version " + (currentVersionIndex + 1) + " of " + briefVersions.length;
+        versionPrev.disabled = currentVersionIndex === 0;
+      }
     }
 
     function showVersion(index) {
@@ -1054,6 +1075,10 @@
       previewLabel.textContent = index === 0 ? "Live Preview" : "Revised Preview";
       updateVersionNav();
     }
+
+    versionBrowse.addEventListener("click", () => {
+      if (briefVersions.length >= 2) showVersion(briefVersions.length - 2);
+    });
 
     versionPrev.addEventListener("click", () => {
       if (currentVersionIndex > 0) showVersion(currentVersionIndex - 1);
