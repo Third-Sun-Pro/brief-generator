@@ -1057,6 +1057,14 @@
       document.getElementById("notes-zone").style.opacity = disabled ? "0.5" : "";
     }
 
+    let hasUnsavedBrief = false;
+
+    window.addEventListener("beforeunload", (e) => {
+      if (hasUnsavedBrief) {
+        e.preventDefault();
+      }
+    });
+
     function createDownloadLinks(json) {
       const docxBlob = new Blob(
         [Uint8Array.from(atob(json.docxBase64), (c) => c.charCodeAt(0))],
@@ -1081,9 +1089,13 @@
       mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Markdown';
       mdLink.className = "dl-md";
 
+      docxLink.addEventListener("click", () => { hasUnsavedBrief = false; });
+      mdLink.addEventListener("click", () => { hasUnsavedBrief = false; });
+
       downloadsEl.appendChild(docxLink);
       downloadsEl.appendChild(mdLink);
       downloadsEl.hidden = false;
+      hasUnsavedBrief = true;
     }
 
     function cancelStream() {
@@ -1110,6 +1122,7 @@
       errorEl.hidden = true;
       warningEl.hidden = true;
       newBriefBtn.hidden = true;
+      hasUnsavedBrief = false;
       resetCommonalities();
       setFormDisabled(false);
     });
