@@ -1222,6 +1222,15 @@
       previewEl.scrollTop = previewEl.scrollHeight;
     }
 
+    // Auto-save scope text to localStorage
+    const scopeEl = document.getElementById("scope");
+    const SCOPE_KEY = "brief-generator-scope";
+    const saved = localStorage.getItem(SCOPE_KEY);
+    if (saved && !scopeEl.value) scopeEl.value = saved;
+    scopeEl.addEventListener("input", () => {
+      localStorage.setItem(SCOPE_KEY, scopeEl.value);
+    });
+
     // CSV client-side validation
     let csvValid = false;
 
@@ -1327,6 +1336,7 @@
       markdownAccumulator = "";
       newBriefBtn.hidden = true;
       resetCommonalities();
+      localStorage.removeItem(SCOPE_KEY);
       setFormDisabled(true);
       startTimer("Generating brief...");
       currentAbortController = new AbortController();
