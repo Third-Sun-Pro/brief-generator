@@ -298,16 +298,17 @@
       color: var(--brown);
     }
 
-    .preview h1 { font-size: 1.3rem; font-weight: 700; margin: 1.25rem 0 0.5rem; color: var(--brown); }
-    .preview h2 { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 0.4rem; color: var(--brown); }
-    .preview h3 { font-size: 0.95rem; font-weight: 600; margin: 0.85rem 0 0.35rem; color: var(--green); }
-    .preview h1:first-child, .preview h2:first-child, .preview h3:first-child { margin-top: 0; }
-    .preview p { margin: 0.5rem 0; }
-    .preview ul, .preview ol { margin: 0.5rem 0; padding-left: 1.5rem; }
-    .preview li { margin: 0.2rem 0; }
-    .preview strong { font-weight: 600; color: var(--brown); }
-    .preview em { font-style: italic; }
-    .preview hr { border: none; border-top: 1px solid var(--cream-dark); margin: 1rem 0; }
+    .preview h1, .commonalities-content h1 { font-size: 1.3rem; font-weight: 700; margin: 1.25rem 0 0.5rem; color: var(--brown); }
+    .preview h2, .commonalities-content h2 { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 0.4rem; color: var(--brown); }
+    .preview h3, .commonalities-content h3 { font-size: 0.95rem; font-weight: 600; margin: 0.85rem 0 0.35rem; color: var(--green); }
+    .preview h1:first-child, .preview h2:first-child, .preview h3:first-child,
+    .commonalities-content h1:first-child, .commonalities-content h2:first-child, .commonalities-content h3:first-child { margin-top: 0; }
+    .preview p, .commonalities-content p { margin: 0.5rem 0; }
+    .preview ul, .preview ol, .commonalities-content ul, .commonalities-content ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+    .preview li, .commonalities-content li { margin: 0.2rem 0; }
+    .preview strong, .commonalities-content strong { font-weight: 600; color: var(--brown); }
+    .preview em, .commonalities-content em { font-style: italic; }
+    .preview hr, .commonalities-content hr { border: none; border-top: 1px solid var(--cream-dark); margin: 1rem 0; }
 
     .preview-label {
       font-size: 0.75rem;
@@ -464,6 +465,89 @@
       background: #f9eeea;
       border: 1px solid #e8d0c4;
     }
+
+    .commonalities-section {
+      margin-top: 1.5rem;
+    }
+
+    .commonalities-toggle {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: #f0f1e8;
+      color: var(--green);
+      border: 1px solid #d4d8b8;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .commonalities-toggle:hover {
+      background: #e6e8d4;
+    }
+
+    .commonalities-toggle .chevron {
+      transition: transform 0.25s ease;
+      font-size: 0.7rem;
+    }
+
+    .commonalities-toggle.open .chevron {
+      transform: rotate(180deg);
+    }
+
+    .commonalities-content {
+      margin-top: 0.75rem;
+      background: var(--cream-light);
+      border: 1px solid var(--cream-dark);
+      border-radius: 12px;
+      padding: 1.25rem;
+      max-height: 400px;
+      overflow-y: auto;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      word-wrap: break-word;
+      font-family: 'DM Sans', sans-serif;
+      color: var(--brown);
+    }
+
+    .commonalities-downloads {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    .commonalities-downloads a {
+      flex: 1;
+      text-align: center;
+      padding: 0.55rem;
+      border-radius: 10px;
+      text-decoration: none;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.78rem;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    .commonalities-downloads a svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .commonalities-downloads .dl-docx { background: var(--green); color: #fff; }
+    .commonalities-downloads .dl-docx:hover { background: #858c5e; transform: translateY(-1px); }
+    .commonalities-downloads .dl-docx svg { fill: #fff; }
+    .commonalities-downloads .dl-md { background: var(--cream); color: var(--brown); }
+    .commonalities-downloads .dl-md:hover { background: var(--cream-dark); transform: translateY(-1px); }
+    .commonalities-downloads .dl-md svg { fill: var(--brown); }
 
     .archive-toggle {
       width: 100%;
@@ -738,6 +822,15 @@
     <div id="preview-label" class="preview-label" hidden>Live Preview</div>
     <div id="preview" class="preview" hidden></div>
     <div id="downloads" class="downloads" hidden></div>
+    <div id="commonalities-section" class="commonalities-section" hidden>
+      <button type="button" id="commonalities-toggle" class="commonalities-toggle">
+        Respondent Commonalities <span class="chevron">&#9660;</span>
+      </button>
+      <div id="commonalities-panel" hidden>
+        <div id="commonalities-content" class="commonalities-content"></div>
+        <div id="commonalities-downloads" class="commonalities-downloads"></div>
+      </div>
+    </div>
     <div id="revision-area" hidden>
       <div class="divider"></div>
       <label class="upload-label" for="feedback">Revise Brief</label>
@@ -841,6 +934,12 @@
     const sessionExpiryEl = document.getElementById("session-expiry");
     const cancelBtn = document.getElementById("cancel-btn");
     const newBriefBtn = document.getElementById("new-brief-btn");
+    const commonalitiesSection = document.getElementById("commonalities-section");
+    const commonalitiesToggle = document.getElementById("commonalities-toggle");
+    const commonalitiesPanel = document.getElementById("commonalities-panel");
+    const commonalitiesContent = document.getElementById("commonalities-content");
+    const commonalitiesDlEl = document.getElementById("commonalities-downloads");
+    let currentCommonalities = null;
 
     function startSessionExpiry(ttlMs) {
       clearSessionExpiry();
@@ -963,8 +1062,54 @@
       errorEl.hidden = true;
       warningEl.hidden = true;
       newBriefBtn.hidden = true;
+      resetCommonalities();
       setFormDisabled(false);
     });
+
+    // Commonalities toggle
+    commonalitiesToggle.addEventListener("click", function () {
+      const isOpen = !commonalitiesPanel.hidden;
+      commonalitiesPanel.hidden = isOpen;
+      this.classList.toggle("open", !isOpen);
+    });
+
+    function createCommonalitiesDownloads(commonalities, clientName) {
+      commonalitiesDlEl.innerHTML = "";
+      const docxBlob = new Blob(
+        [Uint8Array.from(atob(commonalities.docxBase64), (c) => c.charCodeAt(0))],
+        { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
+      );
+      const mdBlob = new Blob([commonalities.markdown], { type: "text/markdown" });
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const slug = clientName
+        ? clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+        : null;
+      const baseName = slug ? `commonalities-${slug}-${timestamp}` : `commonalities-${timestamp}`;
+
+      const docxLink = document.createElement("a");
+      docxLink.href = URL.createObjectURL(docxBlob);
+      docxLink.download = `${baseName}.docx`;
+      docxLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Commonalities .docx';
+      docxLink.className = "dl-docx";
+
+      const mdLink = document.createElement("a");
+      mdLink.href = URL.createObjectURL(mdBlob);
+      mdLink.download = `${baseName}.md`;
+      mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Commonalities .md';
+      mdLink.className = "dl-md";
+
+      commonalitiesDlEl.appendChild(docxLink);
+      commonalitiesDlEl.appendChild(mdLink);
+    }
+
+    function resetCommonalities() {
+      currentCommonalities = null;
+      commonalitiesSection.hidden = true;
+      commonalitiesPanel.hidden = true;
+      commonalitiesContent.innerHTML = "";
+      commonalitiesDlEl.innerHTML = "";
+      commonalitiesToggle.classList.remove("open");
+    }
 
     // Markdown preview rendering
     marked.use({ breaks: true, gfm: true });
@@ -1091,6 +1236,7 @@
       previewEl.innerHTML = "";
       markdownAccumulator = "";
       newBriefBtn.hidden = true;
+      resetCommonalities();
       setFormDisabled(true);
       startTimer("Generating brief...");
       currentAbortController = new AbortController();
@@ -1149,6 +1295,12 @@
               reviseBtn.disabled = false;
               if (json.sessionTtl) startSessionExpiry(json.sessionTtl);
               if (json.archiveWarning) { warningEl.textContent = json.archiveWarning; warningEl.hidden = false; }
+              if (json.commonalities) {
+                currentCommonalities = json.commonalities;
+                commonalitiesContent.innerHTML = DOMPurify.sanitize(marked.parse(json.commonalities.markdown));
+                createCommonalitiesDownloads(json.commonalities, json.clientName);
+                commonalitiesSection.hidden = false;
+              }
               newBriefBtn.hidden = false;
               continue;
             }

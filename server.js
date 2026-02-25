@@ -5,7 +5,7 @@ const crypto = require("crypto");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
-const { generateBrief, generateBriefStream, reviseBriefStream } = require("./generate");
+const { generateBrief, generateBriefStream, reviseBriefStream, generateCommonalities } = require("./generate");
 const { scrapeNavigation } = require("./scrape");
 const { addEntry, listEntries, getEntry } = require("./archive");
 
@@ -304,6 +304,15 @@ app.post(
 
       log("info", "Streaming brief", { reqId: req.id, csvCount: csvFiles.length, noteCount: noteFiles.length });
 
+      // Start commonalities analysis in parallel when multiple CSVs
+      let commonalitiesPromise = null;
+      if (csvTexts.length >= 2) {
+        commonalitiesPromise = generateCommonalities(csvTexts).catch((err) => {
+          log("warn", "Commonalities generation failed", { reqId: req.id, error: err.message });
+          return null;
+        });
+      }
+
       const { docxBuffer, markdownText, clientName, params } = await generateBriefStream(
         csvTexts,
         scopeText.trim(),
@@ -315,6 +324,9 @@ app.post(
       );
 
       log("info", "Brief generated", { reqId: req.id });
+
+      // Await commonalities result (should already be done or nearly done)
+      const commonalities = commonalitiesPromise ? await commonalitiesPromise : null;
 
       const sessionId = createSession(params, markdownText);
 
@@ -336,6 +348,12 @@ app.post(
         sessionTtl: SESSION_TTL,
       };
       if (archiveWarning) donePayload.archiveWarning = archiveWarning;
+      if (commonalities) {
+        donePayload.commonalities = {
+          markdown: commonalities.markdown,
+          docxBase64: commonalities.docxBuffer.toString("base64"),
+        };
+      }
       res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (err) {

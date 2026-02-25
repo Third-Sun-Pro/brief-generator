@@ -417,4 +417,43 @@ async function reviseBriefStream(originalParams, assistantMarkdown, feedback, on
   return { docxBuffer, markdownText, clientName };
 }
 
-module.exports = { generateBrief, generateBriefStream, reviseBriefStream, buildRequestParams, buildRevisionParams, extractClientName, validateCsv, isDecisionMaker, parseInlineFormatting, parseMarkdownToDocxChildren };
+// ---------------------------------------------------------------------------
+// generateCommonalities — analyse multiple questionnaires for agreement/disagreement
+// ---------------------------------------------------------------------------
+async function generateCommonalities(csvTexts) {
+  const client = new Anthropic({ maxRetries: 5 });
+  const dmFlags = csvTexts.map((csv) => isDecisionMaker(csv));
+
+  const csvBlock = csvTexts
+    .map((csv, i) => {
+      const tag = dmFlags[i] ? " [DECISION MAKER]" : "";
+      return `--- Questionnaire ${i + 1}${tag} ---\n${csv}`;
+    })
+    .join("\n\n");
+
+  const start = Date.now();
+  const response = await client.messages.create({
+    model: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
+    max_tokens: 4000,
+    system:
+      "You are an analyst comparing multiple client questionnaire responses for a web design project. Produce a clear, concise summary of where respondents agree and disagree.",
+    messages: [
+      {
+        role: "user",
+        content:
+          `Below are ${csvTexts.length} questionnaire responses from different stakeholders for the same project. Analyze them and produce a commonalities document with these sections:\n\n` +
+          `## Areas of Agreement\nList topics, preferences, goals, and priorities where respondents broadly align. Group related agreements together. Quote or paraphrase specific shared language where helpful.\n\n` +
+          `## Areas of Disagreement\nList topics where respondents gave conflicting or notably different answers. For each, briefly note each respondent's position.\n\n` +
+          `## Notable Unique Perspectives\nIf any single respondent raised an important point that no one else mentioned (but that seems valuable rather than just an outlier), note it here.\n\n` +
+          `Be concise. Use bullets. Do not restate the raw data — synthesize and summarize. Format output as markdown.\n\n${csvBlock}`,
+      },
+    ],
+  });
+
+  logUsage("commonalities", response.usage, Date.now() - start);
+  const markdown = response.content[0].text;
+  const docxBuffer = await buildDocx(markdown);
+  return { markdown, docxBuffer };
+}
+
+module.exports = { generateBrief, generateBriefStream, reviseBriefStream, generateCommonalities, buildRequestParams, buildRevisionParams, extractClientName, validateCsv, isDecisionMaker, parseInlineFormatting, parseMarkdownToDocxChildren, buildDocx };
