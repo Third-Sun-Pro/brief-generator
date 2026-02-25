@@ -1072,13 +1072,13 @@
       const docxLink = document.createElement("a");
       docxLink.href = URL.createObjectURL(docxBlob);
       docxLink.download = `${baseName}.docx`;
-      docxLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .docx';
+      docxLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Pages / Word';
       docxLink.className = "dl-docx";
 
       const mdLink = document.createElement("a");
       mdLink.href = URL.createObjectURL(mdBlob);
       mdLink.download = `${baseName}.md`;
-      mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download .md';
+      mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Markdown';
       mdLink.className = "dl-md";
 
       downloadsEl.appendChild(docxLink);
@@ -1137,13 +1137,13 @@
       const docxLink = document.createElement("a");
       docxLink.href = URL.createObjectURL(docxBlob);
       docxLink.download = `${baseName}.docx`;
-      docxLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Commonalities .docx';
+      docxLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Pages / Word';
       docxLink.className = "dl-docx";
 
       const mdLink = document.createElement("a");
       mdLink.href = URL.createObjectURL(mdBlob);
       mdLink.download = `${baseName}.md`;
-      mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Commonalities .md';
+      mdLink.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Markdown';
       mdLink.className = "dl-md";
 
       commonalitiesDlEl.appendChild(docxLink);
@@ -1552,8 +1552,8 @@
               '</div>' +
             '</div>' +
             '<div class="archive-item-actions">' +
-              '<button class="archive-dl-btn archive-dl-docx" data-id="' + e.id + '" data-fmt="docx">.docx</button>' +
-              '<button class="archive-dl-btn archive-dl-md" data-id="' + e.id + '" data-fmt="md">.md</button>' +
+              '<button class="archive-dl-btn archive-dl-docx" data-id="' + e.id + '" data-fmt="docx">Pages/Word</button>' +
+              '<button class="archive-dl-btn archive-dl-md" data-id="' + e.id + '" data-fmt="md">Markdown</button>' +
             '</div>' +
           '</div>';
         }).join("");
@@ -1583,7 +1583,7 @@
         showError(err.message, null);
       } finally {
         btn.disabled = false;
-        btn.textContent = btn.dataset.fmt === "docx" ? ".docx" : ".md";
+        btn.textContent = btn.dataset.fmt === "docx" ? "Pages/Word" : "Markdown";
       }
     });
   </script>
