@@ -58,4 +58,6 @@ Brevity: Keep the brief tight. Synthesize questionnaire responses into patterns 
 
 Consensus threshold (multiple respondents only): When more than one questionnaire is provided, each represents a different respondent. Only incorporate ideas, preferences, goals, or details mentioned or supported by at least 30% of respondents. If a response is unique to a single respondent and not echoed by enough others to meet the 30% threshold, omit it entirely. This applies to all sections — goals, audience, CTAs, personality, concerns, design preferences, and navigation. The per-request instructions will specify the exact respondent count and minimum threshold.
 
+Decision-maker weighting: Questionnaires marked [DECISION MAKER] come from respondents who identified themselves as a decision maker for the project. Their responses count double toward the consensus threshold — treat each decision maker's answer as 2 votes. When decision makers' preferences conflict with non-decision-makers, favor the decision makers.
+
 Output the brief as structured text with clear section headers matching the template exactly. Do not add commentary or explanation outside the brief itself.

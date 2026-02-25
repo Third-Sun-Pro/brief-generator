@@ -35,7 +35,7 @@ require.cache[sdkPath] = {
 // Clear generate.js from cache first to ensure fresh load with mock
 const generatePath = require.resolve("../generate");
 delete require.cache[generatePath];
-const { generateBrief, buildRequestParams } = require("../generate");
+const { generateBrief, buildRequestParams, isDecisionMaker } = require("../generate");
 
 const fixturesDir = path.join(__dirname, "fixtures");
 

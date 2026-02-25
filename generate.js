@@ -167,6 +167,45 @@ function validateCsv(csvText, label) {
 }
 
 // ---------------------------------------------------------------------------
+// Detect whether a CSV respondent is a decision maker
+// ---------------------------------------------------------------------------
+const DECISION_MAKER_PATTERN = /decision\s*maker/i;
+const DECISION_MAKER_YES = /^yes$/i;
+
+function isDecisionMaker(csvText) {
+  const lines = csvText.trim().split(/\r?\n/);
+  if (lines.length < 2) return false;
+
+  // Try column-based CSV (header row with multiple columns)
+  const header = lines[0];
+  if (header.includes(",")) {
+    // Simple CSV field split (handles quoted fields)
+    const splitRow = (row) => {
+      const fields = [];
+      let current = "";
+      let inQuotes = false;
+      for (const ch of row) {
+        if (ch === '"') { inQuotes = !inQuotes; continue; }
+        if (ch === "," && !inQuotes) { fields.push(current.trim()); current = ""; continue; }
+        current += ch;
+      }
+      fields.push(current.trim());
+      return fields;
+    };
+
+    const headers = splitRow(header);
+    const colIdx = headers.findIndex((h) => DECISION_MAKER_PATTERN.test(h));
+    if (colIdx === -1) return false;
+
+    // Check first data row
+    const values = splitRow(lines[1]);
+    return DECISION_MAKER_YES.test(values[colIdx] || "");
+  }
+
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Shared: build the API request params from inputs
 // ---------------------------------------------------------------------------
 function buildRequestParams(csvTexts, scopeText, noteFiles, siteContext) {
@@ -198,9 +237,15 @@ function buildRequestParams(csvTexts, scopeText, noteFiles, siteContext) {
     };
   });
 
+  // Detect decision makers for multi-respondent weighting
+  const dmFlags = csvArr.map((csv) => isDecisionMaker(csv));
+
   const csvBlock = csvArr.length === 1
     ? `Here is the client discovery questionnaire (CSV):\n\n${csvArr[0]}`
-    : csvArr.map((csv, i) => `--- Questionnaire ${i + 1} ---\n${csv}`).join("\n\n");
+    : csvArr.map((csv, i) => {
+        const tag = dmFlags[i] ? " [DECISION MAKER]" : "";
+        return `--- Questionnaire ${i + 1}${tag} ---\n${csv}`;
+      }).join("\n\n");
 
   const csvText = csvArr.length === 1
     ? csvBlock
@@ -227,8 +272,12 @@ function buildRequestParams(csvTexts, scopeText, noteFiles, siteContext) {
 
   if (csvArr.length > 1) {
     const respondentCount = csvArr.length;
+    const dmCount = dmFlags.filter(Boolean).length;
     const minRespondents = Math.max(1, Math.ceil(respondentCount * 0.3));
     finalInstruction += `\n\nIMPORTANT — Consensus threshold: There are ${respondentCount} respondents. Only include ideas, preferences, or details in the brief if they are mentioned by at least ${minRespondents} respondent${minRespondents === 1 ? "" : "s"} (30% of ${respondentCount}). Drop any point that fails to meet this threshold.`;
+    if (dmCount > 0) {
+      finalInstruction += ` Decision maker responses (marked [DECISION MAKER]) count double toward this threshold — treat each decision maker's response as 2 votes. When preferences conflict, favor decision makers' preferences.`;
+    }
   }
 
   contentBlocks.push({ type: "text", text: finalInstruction });
@@ -368,4 +417,4 @@ async function reviseBriefStream(originalParams, assistantMarkdown, feedback, on
   return { docxBuffer, markdownText, clientName };
 }
 
-module.exports = { generateBrief, generateBriefStream, reviseBriefStream, buildRequestParams, buildRevisionParams, extractClientName, validateCsv, parseInlineFormatting, parseMarkdownToDocxChildren };
+module.exports = { generateBrief, generateBriefStream, reviseBriefStream, buildRequestParams, buildRevisionParams, extractClientName, validateCsv, isDecisionMaker, parseInlineFormatting, parseMarkdownToDocxChildren };
