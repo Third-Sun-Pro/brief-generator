@@ -514,6 +514,13 @@
       color: #b3a68e;
     }
 
+    .word-count {
+      font-size: 0.75rem;
+      color: #9a8a6e;
+      text-align: right;
+      margin-top: 0.3rem;
+    }
+
     .optional-note {
       font-weight: 400;
       text-transform: none;
@@ -881,6 +888,7 @@
         <label class="upload-label" for="scope">Project Scope</label>
         <textarea id="scope" name="scope" class="revision-textarea" required
           placeholder="Paste or type the project scope, deliverables, timeline..." rows="4"></textarea>
+        <div id="scope-word-count" class="word-count">0 words</div>
       </div>
 
       <div class="upload-area">
@@ -1334,13 +1342,22 @@
       previewEl.scrollTop = previewEl.scrollHeight;
     }
 
-    // Auto-save scope text to localStorage
+    // Auto-save scope text to localStorage + word count
     const scopeEl = document.getElementById("scope");
+    const scopeWordCount = document.getElementById("scope-word-count");
     const SCOPE_KEY = "brief-generator-scope";
     const saved = localStorage.getItem(SCOPE_KEY);
     if (saved && !scopeEl.value) scopeEl.value = saved;
+
+    function updateWordCount() {
+      const words = scopeEl.value.trim().split(/\s+/).filter(Boolean).length;
+      scopeWordCount.textContent = words + (words === 1 ? " word" : " words");
+    }
+
+    updateWordCount();
     scopeEl.addEventListener("input", () => {
       localStorage.setItem(SCOPE_KEY, scopeEl.value);
+      updateWordCount();
     });
 
     // Drag-and-drop visual feedback
