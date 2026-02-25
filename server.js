@@ -318,19 +318,25 @@ app.post(
 
       const sessionId = createSession(params, markdownText);
 
+      let archiveWarning = null;
       try {
         addEntry({ clientName: clientName || "Untitled", markdown: markdownText,
           docxBase64: docxBuffer.toString("base64"), source: "generate" });
-      } catch (archiveErr) { log("error", "Archive save failed", { reqId: req.id, error: archiveErr.message }); }
+      } catch (archiveErr) {
+        log("error", "Archive save failed", { reqId: req.id, error: archiveErr.message });
+        archiveWarning = "Brief could not be saved to the archive. Please download it now.";
+      }
 
-      res.write(`data: ${JSON.stringify({
+      const donePayload = {
         done: true,
         docxBase64: docxBuffer.toString("base64"),
         markdown: markdownText,
         clientName: clientName || null,
         sessionId,
         sessionTtl: SESSION_TTL,
-      })}\n\n`);
+      };
+      if (archiveWarning) donePayload.archiveWarning = archiveWarning;
+      res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (err) {
       log("error", "Stream generate failed", { reqId: req.id, error: err.message || String(err) });
@@ -375,21 +381,27 @@ app.post("/revise-stream", requireAuth, apiLimiter, async (req, res) => {
     session.markdown = markdownText;
     session.createdAt = Date.now();
 
+    let archiveWarning = null;
     try {
       addEntry({ clientName: clientName || "Untitled", markdown: markdownText,
         docxBase64: docxBuffer.toString("base64"), source: "revise" });
-    } catch (archiveErr) { log("error", "Archive save failed", { reqId: req.id, error: archiveErr.message }); }
+    } catch (archiveErr) {
+      log("error", "Archive save failed", { reqId: req.id, error: archiveErr.message });
+      archiveWarning = "Brief could not be saved to the archive. Please download it now.";
+    }
 
     log("info", "Brief revised", { reqId: req.id, sessionId });
 
-    res.write(`data: ${JSON.stringify({
+    const donePayload = {
       done: true,
       docxBase64: docxBuffer.toString("base64"),
       markdown: markdownText,
       clientName: clientName || null,
       sessionId,
       sessionTtl: SESSION_TTL,
-    })}\n\n`);
+    };
+    if (archiveWarning) donePayload.archiveWarning = archiveWarning;
+    res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
     res.end();
   } catch (err) {
     log("error", "Revision failed", { reqId: req.id, sessionId, error: err.message || String(err) });
@@ -412,11 +424,34 @@ app.get("/archive/:id", requireAuth, (req, res) => {
 });
 
 function cleanErrorMessage(err) {
-  if (err.status === 429) return "Rate limit reached. Please wait a minute and try again.";
-  if (err.status === 401) return "API key is missing or invalid. Check your .env file.";
-  if (err.status === 400) return "The request was too large. Try with fewer or smaller files.";
+  // Check Anthropic nested error type first
+  const errorType = err.error && err.error.type;
+  if (errorType) {
+    if (errorType === "overloaded_error") return "The AI service is currently overloaded. Please wait a moment and try again.";
+    if (errorType === "rate_limit_error") return "Rate limit reached. Please wait a moment and try again.";
+    if (errorType === "authentication_error") return "API key is missing or invalid. Contact your administrator.";
+    if (errorType === "invalid_request_error") {
+      const msg = (err.error.message || err.message || "").toLowerCase();
+      if (msg.includes("token") || msg.includes("too long") || msg.includes("too large")) {
+        return "Request was too large. Try with fewer or smaller files.";
+      }
+      return "Request could not be processed. Check your inputs and try again.";
+    }
+  }
+
+  // Network errors
+  const code = err.code || (err.cause && err.cause.code);
+  if (code === "ECONNREFUSED" || code === "ENOTFOUND" || code === "ETIMEDOUT") {
+    return "Could not reach the AI service. Check your internet connection and try again.";
+  }
+
+  // HTTP status code fallbacks
+  if (err.status === 429) return "Rate limit reached. Please wait a moment and try again.";
+  if (err.status === 401) return "API key is missing or invalid. Contact your administrator.";
+  if (err.status === 400) return "Request was too large. Try with fewer or smaller files.";
   if (err.status >= 500) return "The AI service is temporarily unavailable. Please try again.";
-  return err.message || "Something went wrong.";
+
+  return err.message || "Something went wrong. Please try again.";
 }
 
 // Multer file-size error handler
@@ -429,6 +464,7 @@ app.use((err, _req, res, next) => {
 
 module.exports = app;
 module.exports.sessions = sessions;
+module.exports.cleanErrorMessage = cleanErrorMessage;
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;

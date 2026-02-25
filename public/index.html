@@ -293,11 +293,21 @@
       overflow-y: auto;
       font-size: 0.82rem;
       line-height: 1.6;
-      white-space: pre-wrap;
       word-wrap: break-word;
       font-family: 'DM Sans', sans-serif;
       color: var(--brown);
     }
+
+    .preview h1 { font-size: 1.3rem; font-weight: 700; margin: 1.25rem 0 0.5rem; color: var(--brown); }
+    .preview h2 { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 0.4rem; color: var(--brown); }
+    .preview h3 { font-size: 0.95rem; font-weight: 600; margin: 0.85rem 0 0.35rem; color: var(--green); }
+    .preview h1:first-child, .preview h2:first-child, .preview h3:first-child { margin-top: 0; }
+    .preview p { margin: 0.5rem 0; }
+    .preview ul, .preview ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+    .preview li { margin: 0.2rem 0; }
+    .preview strong { font-weight: 600; color: var(--brown); }
+    .preview em { font-style: italic; }
+    .preview hr { border: none; border-top: 1px solid var(--cream-dark); margin: 1rem 0; }
 
     .preview-label {
       font-size: 0.75rem;
@@ -645,6 +655,8 @@
       box-shadow: none;
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 </head>
 <body>
   <div id="login-overlay" class="login-overlay">
@@ -735,6 +747,7 @@
       <button type="button" id="revise-btn" class="revise-btn">Revise Brief</button>
       <div id="session-expiry" class="session-expiry" role="status" aria-live="polite" hidden></div>
     </div>
+    <button type="button" id="new-brief-btn" class="cancel-btn" hidden>New Brief</button>
     <div id="warning" class="warning" role="status" hidden></div>
     <div id="error" class="error" role="alert" tabindex="-1" hidden></div>
 
@@ -827,6 +840,7 @@
     let currentAbortController = null;
     const sessionExpiryEl = document.getElementById("session-expiry");
     const cancelBtn = document.getElementById("cancel-btn");
+    const newBriefBtn = document.getElementById("new-brief-btn");
 
     function startSessionExpiry(ttlMs) {
       clearSessionExpiry();
@@ -843,6 +857,7 @@
           sessionExpiryEl.hidden = false;
           reviseBtn.disabled = true;
           feedbackEl.disabled = true;
+          setFormDisabled(false);
           return;
         }
         const mins = Math.floor(remaining / 60000);
@@ -932,6 +947,45 @@
     }
 
     cancelBtn.addEventListener("click", cancelStream);
+
+    newBriefBtn.addEventListener("click", () => {
+      currentSessionId = null;
+      clearSessionExpiry();
+      revisionArea.hidden = true;
+      feedbackEl.value = "";
+      downloadsEl.hidden = true;
+      downloadsEl.innerHTML = "";
+      previewEl.hidden = true;
+      previewLabel.hidden = true;
+      previewEl.innerHTML = "";
+      markdownAccumulator = "";
+      statusEl.hidden = true;
+      errorEl.hidden = true;
+      warningEl.hidden = true;
+      newBriefBtn.hidden = true;
+      setFormDisabled(false);
+    });
+
+    // Markdown preview rendering
+    marked.use({ breaks: true, gfm: true });
+    let markdownAccumulator = "";
+    let renderScheduled = false;
+
+    function scheduleRender() {
+      if (renderScheduled) return;
+      renderScheduled = true;
+      requestAnimationFrame(() => {
+        renderScheduled = false;
+        previewEl.innerHTML = DOMPurify.sanitize(marked.parse(markdownAccumulator));
+        previewEl.scrollTop = previewEl.scrollHeight;
+      });
+    }
+
+    function finalRender() {
+      renderScheduled = false;
+      previewEl.innerHTML = DOMPurify.sanitize(marked.parse(markdownAccumulator));
+      previewEl.scrollTop = previewEl.scrollHeight;
+    }
 
     // CSV client-side validation
     let csvValid = false;
@@ -1034,7 +1088,9 @@
       downloadsEl.innerHTML = "";
       previewEl.hidden = true;
       previewLabel.hidden = true;
-      previewEl.textContent = "";
+      previewEl.innerHTML = "";
+      markdownAccumulator = "";
+      newBriefBtn.hidden = true;
       setFormDisabled(true);
       startTimer("Generating brief...");
       currentAbortController = new AbortController();
@@ -1084,6 +1140,7 @@
             }
 
             if (json.done) {
+              finalRender();
               createDownloadLinks(json);
               currentSessionId = json.sessionId;
               statusEl.innerHTML = "Done!";
@@ -1091,12 +1148,14 @@
               feedbackEl.disabled = false;
               reviseBtn.disabled = false;
               if (json.sessionTtl) startSessionExpiry(json.sessionTtl);
+              if (json.archiveWarning) { warningEl.textContent = json.archiveWarning; warningEl.hidden = false; }
+              newBriefBtn.hidden = false;
               continue;
             }
 
             if (json.text) {
-              previewEl.textContent += json.text;
-              previewEl.scrollTop = previewEl.scrollHeight;
+              markdownAccumulator += json.text;
+              scheduleRender();
             }
           }
         }
@@ -1113,7 +1172,7 @@
         stopTimer();
         currentAbortController = null;
         cancelBtn.hidden = true;
-        setFormDisabled(false);
+        if (!currentSessionId) setFormDisabled(false);
       }
     });
 
@@ -1139,7 +1198,8 @@
       downloadsEl.hidden = true;
       downloadsEl.innerHTML = "";
       errorEl.hidden = true;
-      previewEl.textContent = "";
+      previewEl.innerHTML = "";
+      markdownAccumulator = "";
       previewLabel.hidden = false;
       previewLabel.textContent = "Revised Preview";
       previewEl.hidden = false;
@@ -1182,17 +1242,19 @@
             if (json.error) throw new Error(json.error);
 
             if (json.done) {
+              finalRender();
               currentSessionId = json.sessionId;
               createDownloadLinks(json);
               statusEl.innerHTML = "Done!";
               feedbackEl.value = "";
               if (json.sessionTtl) startSessionExpiry(json.sessionTtl);
+              if (json.archiveWarning) { warningEl.textContent = json.archiveWarning; warningEl.hidden = false; }
               continue;
             }
 
             if (json.text) {
-              previewEl.textContent += json.text;
-              previewEl.scrollTop = previewEl.scrollHeight;
+              markdownAccumulator += json.text;
+              scheduleRender();
             }
           }
         }
@@ -1210,7 +1272,6 @@
         currentAbortController = null;
         cancelBtn.hidden = true;
         reviseBtn.disabled = false;
-        setFormDisabled(false);
       }
     });
     // -----------------------------------------------------------------------
