@@ -1220,6 +1220,7 @@
     cancelBtn.addEventListener("click", cancelStream);
 
     newBriefBtn.addEventListener("click", () => {
+      if (!confirm("Start a new brief? This will clear the current brief and all revision history.")) return;
       currentSessionId = null;
       clearSessionExpiry();
       revisionArea.hidden = true;
@@ -1522,6 +1523,8 @@
                 commonalitiesContent.innerHTML = DOMPurify.sanitize(marked.parse(json.commonalities.markdown));
                 createCommonalitiesDownloads(json.commonalities, json.clientName);
                 commonalitiesSection.hidden = false;
+                commonalitiesPanel.hidden = false;
+                commonalitiesToggle.classList.add("open");
               }
               newBriefBtn.hidden = false;
               continue;
