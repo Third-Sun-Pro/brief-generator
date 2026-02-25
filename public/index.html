@@ -329,6 +329,31 @@
       margin-top: 1.5rem;
       font-size: 0.85rem;
       font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .error[hidden] { display: none; }
+
+    .retry-btn {
+      flex-shrink: 0;
+      padding: 0.4rem 0.85rem;
+      background: var(--orange);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .retry-btn:hover {
+      background: #a34b20;
+      transform: translateY(-1px);
     }
 
     .divider {
@@ -842,7 +867,10 @@
     </div>
     <button type="button" id="new-brief-btn" class="cancel-btn" hidden>New Brief</button>
     <div id="warning" class="warning" role="status" hidden></div>
-    <div id="error" class="error" role="alert" tabindex="-1" hidden></div>
+    <div id="error" class="error" role="alert" tabindex="-1" hidden>
+      <span id="error-text"></span>
+      <button type="button" id="retry-btn" class="retry-btn">Retry</button>
+    </div>
 
     <button type="button" id="archive-toggle" class="archive-toggle">
       <svg viewBox="0 0 24 24"><path d="M20 6H4V4h16v2zm-1 2H5c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h14c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-5 7H10v-2h4v2z"/></svg>
@@ -940,6 +968,26 @@
     const commonalitiesContent = document.getElementById("commonalities-content");
     const commonalitiesDlEl = document.getElementById("commonalities-downloads");
     let currentCommonalities = null;
+    const errorText = document.getElementById("error-text");
+    const retryBtn = document.getElementById("retry-btn");
+    let lastErrorSource = null;
+
+    function showError(message, source) {
+      errorText.textContent = message;
+      lastErrorSource = source || null;
+      retryBtn.hidden = !source;
+      errorEl.hidden = false;
+      errorEl.focus();
+    }
+
+    retryBtn.addEventListener("click", () => {
+      errorEl.hidden = true;
+      if (lastErrorSource === "generate") {
+        form.requestSubmit();
+      } else if (lastErrorSource === "revise") {
+        reviseBtn.click();
+      }
+    });
 
     function startSessionExpiry(ttlMs) {
       clearSessionExpiry();
@@ -1315,9 +1363,7 @@
         if (err.name === "AbortError") {
           statusEl.innerHTML = "Cancelled.";
         } else {
-          errorEl.textContent = err.message;
-          errorEl.hidden = false;
-          errorEl.focus();
+          showError(err.message, "generate");
           statusEl.hidden = true;
         }
       } finally {
@@ -1342,8 +1388,7 @@
         return;
       }
       if (!currentSessionId) {
-        errorEl.textContent = "Session expired. Please generate a new brief first.";
-        errorEl.hidden = false;
+        showError("Session expired. Please generate a new brief first.", null);
         return;
       }
 
@@ -1414,9 +1459,7 @@
         if (err.name === "AbortError") {
           statusEl.innerHTML = "Cancelled.";
         } else {
-          errorEl.textContent = err.message;
-          errorEl.hidden = false;
-          errorEl.focus();
+          showError(err.message, "revise");
           statusEl.hidden = true;
         }
       } finally {
@@ -1537,8 +1580,7 @@
       try {
         await fetchArchiveEntry(btn.dataset.id, btn.dataset.fmt);
       } catch (err) {
-        errorEl.textContent = err.message;
-        errorEl.hidden = false;
+        showError(err.message, null);
       } finally {
         btn.disabled = false;
         btn.textContent = btn.dataset.fmt === "docx" ? ".docx" : ".md";
