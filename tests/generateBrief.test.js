@@ -142,3 +142,106 @@ describe("generateBrief", () => {
     expect(finalText).not.toContain("Consensus threshold");
   });
 });
+
+describe("isDecisionMaker", () => {
+  it("returns true when decision maker column is 'yes'", () => {
+    const csv = fs.readFileSync(
+      path.join(fixturesDir, "sample-dm.csv"),
+      "utf-8"
+    );
+    expect(isDecisionMaker(csv)).toBe(true);
+  });
+
+  it("returns false when decision maker column is 'no'", () => {
+    const csv = [
+      '"Name","Are you a decision maker for this project?","Goals"',
+      '"Bob","no","Improve SEO"',
+    ].join("\n");
+    expect(isDecisionMaker(csv)).toBe(false);
+  });
+
+  it("returns false when there is no decision maker column", () => {
+    const csv = fs.readFileSync(
+      path.join(fixturesDir, "sample.csv"),
+      "utf-8"
+    );
+    expect(isDecisionMaker(csv)).toBe(false);
+  });
+
+  it("returns false for CSV with only a header row", () => {
+    const csv = '"Name","Are you a decision maker for this project?"';
+    expect(isDecisionMaker(csv)).toBe(false);
+  });
+
+  it("is case-insensitive for the column header", () => {
+    const csv = [
+      '"Name","DECISION MAKER","Goals"',
+      '"Alice","yes","Launch site"',
+    ].join("\n");
+    expect(isDecisionMaker(csv)).toBe(true);
+  });
+
+  it("is case-insensitive for the yes value", () => {
+    const csv = [
+      '"Name","Decision Maker","Goals"',
+      '"Alice","YES","Launch site"',
+    ].join("\n");
+    expect(isDecisionMaker(csv)).toBe(true);
+  });
+});
+
+describe("buildRequestParams decision-maker weighting", () => {
+  const sampleCsv = fs.readFileSync(
+    path.join(fixturesDir, "sample.csv"),
+    "utf-8"
+  );
+  const dmCsv = fs.readFileSync(
+    path.join(fixturesDir, "sample-dm.csv"),
+    "utf-8"
+  );
+
+  it("labels decision-maker CSV with [DECISION MAKER] tag", () => {
+    const params = buildRequestParams([sampleCsv, dmCsv], "Test scope", []);
+    const textBlocks = params.messages[0].content.filter((c) => c.type === "text");
+    const csvBlock = textBlocks.find((b) => b.text.includes("--- Questionnaire"));
+
+    expect(csvBlock.text).toContain("[DECISION MAKER]");
+    // First questionnaire (non-DM) should not have the tag
+    expect(csvBlock.text).toMatch(/Questionnaire 1 ---/);
+    expect(csvBlock.text).not.toMatch(/Questionnaire 1 \[DECISION MAKER\]/);
+    // Second questionnaire (DM) should have the tag
+    expect(csvBlock.text).toContain("Questionnaire 2 [DECISION MAKER]");
+  });
+
+  it("includes 'count double' instruction when DM CSVs are present", () => {
+    const params = buildRequestParams([sampleCsv, dmCsv], "Test scope", []);
+    const textBlocks = params.messages[0].content.filter((c) => c.type === "text");
+    const finalText = textBlocks[textBlocks.length - 1].text;
+
+    expect(finalText).toContain("count double");
+    expect(finalText).toContain("Decision maker responses");
+  });
+
+  it("excludes 'count double' when no DM CSVs are present", () => {
+    const params = buildRequestParams(
+      [sampleCsv, sampleCsv, sampleCsv],
+      "Test scope",
+      []
+    );
+    const textBlocks = params.messages[0].content.filter((c) => c.type === "text");
+    const finalText = textBlocks[textBlocks.length - 1].text;
+
+    expect(finalText).toContain("Consensus threshold");
+    expect(finalText).not.toContain("count double");
+    expect(finalText).not.toContain("Decision maker responses");
+  });
+
+  it("does not add DM labels or count-double for single CSV", () => {
+    const params = buildRequestParams([dmCsv], "Test scope", []);
+    const textBlocks = params.messages[0].content.filter((c) => c.type === "text");
+    const finalText = textBlocks[textBlocks.length - 1].text;
+
+    expect(finalText).not.toContain("count double");
+    expect(finalText).not.toContain("[DECISION MAKER]");
+  });
+});
