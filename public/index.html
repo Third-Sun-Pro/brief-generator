@@ -120,6 +120,13 @@
       background: #f5eced;
     }
 
+    .upload-zone.dragover {
+      border-color: var(--pink);
+      border-style: solid;
+      background: #f0dde0;
+      box-shadow: 0 0 0 3px rgba(209, 142, 151, 0.25);
+    }
+
     .upload-zone.has-file {
       border-color: var(--green);
       border-style: solid;
@@ -321,6 +328,40 @@
     .preview strong, .commonalities-content strong { font-weight: 600; color: var(--brown); }
     .preview em, .commonalities-content em { font-style: italic; }
     .preview hr, .commonalities-content hr { border: none; border-top: 1px solid var(--cream-dark); margin: 1rem 0; }
+
+    .version-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--brown);
+    }
+
+    .version-nav button {
+      padding: 0.3rem 0.6rem;
+      background: var(--cream);
+      color: var(--brown);
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .version-nav button:hover:not(:disabled) {
+      background: var(--cream-dark);
+      transform: translateY(-1px);
+    }
+
+    .version-nav button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
 
     .preview-label {
       font-size: 0.75rem;
@@ -859,6 +900,11 @@
     <div id="preview-label" class="preview-label" hidden>Live Preview</div>
     <div id="preview" class="preview" hidden></div>
     <div id="downloads" class="downloads" hidden></div>
+    <div id="version-nav" class="version-nav" hidden>
+      <button type="button" id="version-prev">&larr; Prev</button>
+      <span id="version-label"></span>
+      <button type="button" id="version-next">Next &rarr;</button>
+    </div>
     <div id="commonalities-section" class="commonalities-section" hidden>
       <button type="button" id="commonalities-toggle" class="commonalities-toggle">
         Respondent Commonalities <span class="chevron">&#9660;</span>
@@ -980,6 +1026,43 @@
     const commonalitiesContent = document.getElementById("commonalities-content");
     const commonalitiesDlEl = document.getElementById("commonalities-downloads");
     let currentCommonalities = null;
+    const versionNav = document.getElementById("version-nav");
+    const versionLabel = document.getElementById("version-label");
+    const versionPrev = document.getElementById("version-prev");
+    const versionNext = document.getElementById("version-next");
+    let briefVersions = [];
+    let currentVersionIndex = -1;
+
+    function updateVersionNav() {
+      if (briefVersions.length <= 1) {
+        versionNav.hidden = true;
+        return;
+      }
+      versionNav.hidden = false;
+      versionLabel.textContent = "Version " + (currentVersionIndex + 1) + " of " + briefVersions.length;
+      versionPrev.disabled = currentVersionIndex === 0;
+      versionNext.disabled = currentVersionIndex === briefVersions.length - 1;
+    }
+
+    function showVersion(index) {
+      currentVersionIndex = index;
+      const v = briefVersions[index];
+      markdownAccumulator = v.markdown;
+      finalRender();
+      downloadsEl.innerHTML = "";
+      createDownloadLinks(v);
+      previewLabel.textContent = index === 0 ? "Live Preview" : "Revised Preview";
+      updateVersionNav();
+    }
+
+    versionPrev.addEventListener("click", () => {
+      if (currentVersionIndex > 0) showVersion(currentVersionIndex - 1);
+    });
+
+    versionNext.addEventListener("click", () => {
+      if (currentVersionIndex < briefVersions.length - 1) showVersion(currentVersionIndex + 1);
+    });
+
     const errorText = document.getElementById("error-text");
     const retryBtn = document.getElementById("retry-btn");
     let lastErrorSource = null;
@@ -1152,6 +1235,9 @@
       warningEl.hidden = true;
       newBriefBtn.hidden = true;
       hasUnsavedBrief = false;
+      briefVersions = [];
+      currentVersionIndex = -1;
+      versionNav.hidden = true;
       resetCommonalities();
       setFormDisabled(false);
     });
@@ -1229,6 +1315,30 @@
     if (saved && !scopeEl.value) scopeEl.value = saved;
     scopeEl.addEventListener("input", () => {
       localStorage.setItem(SCOPE_KEY, scopeEl.value);
+    });
+
+    // Drag-and-drop visual feedback
+    document.querySelectorAll(".upload-zone").forEach((zone) => {
+      let dragCounter = 0;
+      zone.addEventListener("dragenter", (e) => {
+        e.preventDefault();
+        dragCounter++;
+        zone.classList.add("dragover");
+      });
+      zone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+      });
+      zone.addEventListener("dragleave", () => {
+        dragCounter--;
+        if (dragCounter <= 0) {
+          dragCounter = 0;
+          zone.classList.remove("dragover");
+        }
+      });
+      zone.addEventListener("drop", () => {
+        dragCounter = 0;
+        zone.classList.remove("dragover");
+      });
     });
 
     // CSV client-side validation
@@ -1335,6 +1445,9 @@
       previewEl.innerHTML = "";
       markdownAccumulator = "";
       newBriefBtn.hidden = true;
+      briefVersions = [];
+      currentVersionIndex = -1;
+      versionNav.hidden = true;
       resetCommonalities();
       localStorage.removeItem(SCOPE_KEY);
       setFormDisabled(true);
@@ -1388,6 +1501,9 @@
             if (json.done) {
               finalRender();
               createDownloadLinks(json);
+              briefVersions = [{ markdown: json.markdown, docxBase64: json.docxBase64, clientName: json.clientName }];
+              currentVersionIndex = 0;
+              updateVersionNav();
               currentSessionId = json.sessionId;
               statusEl.innerHTML = "Done!";
               revisionArea.hidden = false;
@@ -1494,6 +1610,9 @@
               finalRender();
               currentSessionId = json.sessionId;
               createDownloadLinks(json);
+              briefVersions.push({ markdown: json.markdown, docxBase64: json.docxBase64, clientName: json.clientName });
+              currentVersionIndex = briefVersions.length - 1;
+              updateVersionNav();
               statusEl.innerHTML = "Done!";
               feedbackEl.value = "";
               if (json.sessionTtl) startSessionExpiry(json.sessionTtl);
