@@ -1335,7 +1335,8 @@
           zone.classList.remove("dragover");
         }
       });
-      zone.addEventListener("drop", () => {
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
         dragCounter = 0;
         zone.classList.remove("dragover");
       });
