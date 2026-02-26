@@ -209,7 +209,7 @@ function isDecisionMaker(csvText) {
 // Shared: build the API request params from inputs
 // ---------------------------------------------------------------------------
 function buildRequestParams(csvTexts, scopeText, noteFiles, siteContext) {
-  const csvArr = Array.isArray(csvTexts) ? csvTexts : [csvTexts];
+  const csvArr = Array.isArray(csvTexts) ? csvTexts.filter(Boolean) : csvTexts ? [csvTexts] : [];
   const notes = Array.isArray(noteFiles) ? noteFiles : [];
 
   csvArr.forEach((csv, i) => {
@@ -237,20 +237,6 @@ function buildRequestParams(csvTexts, scopeText, noteFiles, siteContext) {
     };
   });
 
-  // Detect decision makers for multi-respondent weighting
-  const dmFlags = csvArr.map((csv) => isDecisionMaker(csv));
-
-  const csvBlock = csvArr.length === 1
-    ? `Here is the client discovery questionnaire (CSV):\n\n${csvArr[0]}`
-    : csvArr.map((csv, i) => {
-        const tag = dmFlags[i] ? " [DECISION MAKER]" : "";
-        return `--- Questionnaire ${i + 1}${tag} ---\n${csv}`;
-      }).join("\n\n");
-
-  const csvText = csvArr.length === 1
-    ? csvBlock
-    : `Here are the client discovery questionnaires (CSVs):\n\n${csvBlock}`;
-
   // Static examples go first (with cache_control) so the prefix is cacheable.
   // This avoids re-processing ~7,700 tokens of examples on every request.
   const contentBlocks = [
@@ -261,17 +247,41 @@ function buildRequestParams(csvTexts, scopeText, noteFiles, siteContext) {
     },
     { type: "text", text: `PROJECT SCOPE:\n\n${scopeText}` },
     ...noteBlocks,
-    { type: "text", text: csvText },
   ];
+
+  if (csvArr.length > 0) {
+    // Detect decision makers for multi-respondent weighting
+    const dmFlags = csvArr.map((csv) => isDecisionMaker(csv));
+
+    const csvBlock = csvArr.length === 1
+      ? `Here is the client discovery questionnaire (CSV):\n\n${csvArr[0]}`
+      : csvArr.map((csv, i) => {
+          const tag = dmFlags[i] ? " [DECISION MAKER]" : "";
+          return `--- Questionnaire ${i + 1}${tag} ---\n${csv}`;
+        }).join("\n\n");
+
+    const csvText = csvArr.length === 1
+      ? csvBlock
+      : `Here are the client discovery questionnaires (CSVs):\n\n${csvBlock}`;
+
+    contentBlocks.push({ type: "text", text: csvText });
+  }
 
   if (siteContext) {
     contentBlocks.push({ type: "text", text: siteContext });
   }
 
-  let finalInstruction = "Using the project scope, questionnaire(s) (CSV), and any supporting documents provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — synthesize responses into patterns and themes rather than restating every answer. Use short, direct sentences. Bullet points should be one line each. Cut filler words and redundant phrasing. Match the length and density of the examples, not longer. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.";
+  const sourceList = [
+    "the project scope",
+    csvArr.length > 0 ? "questionnaire(s) (CSV)" : null,
+    notes.length > 0 ? "supporting documents" : null,
+  ].filter(Boolean).join(", ");
+
+  let finalInstruction = `Using ${sourceList} provided above, and following the structure and tone of the examples exactly, generate a complete Creative Brief & Site Plan. Be concise — synthesize responses into patterns and themes rather than restating every answer. Use short, direct sentences. Bullet points should be one line each. Cut filler words and redundant phrasing. Match the length and density of the examples, not longer. Format the output as markdown: use # for the brief title, ## for section headers, ### for subsections, - for bullets, [ ] for checkboxes, and ---------- for section dividers.${csvArr.length === 0 ? " Since no questionnaire was provided, use [NEEDS CLARIFICATION] for any audience, personality, or concern details you cannot infer from the scope alone." : ""}`;
 
   if (csvArr.length > 1) {
     const respondentCount = csvArr.length;
+    const dmFlags = csvArr.map((csv) => isDecisionMaker(csv));
     const dmCount = dmFlags.filter(Boolean).length;
     const minRespondents = Math.max(1, Math.ceil(respondentCount * 0.3));
     finalInstruction += `\n\nIMPORTANT — Consensus threshold: There are ${respondentCount} respondents. Only include ideas, preferences, or details in the brief if they are mentioned by at least ${minRespondents} respondent${minRespondents === 1 ? "" : "s"} (30% of ${respondentCount}). Drop any point that fails to meet this threshold.`;

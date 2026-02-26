@@ -938,7 +938,7 @@
 
     <form id="form">
       <div class="upload-area">
-        <label class="upload-label" for="csv">Client Questionnaire</label>
+        <label class="upload-label" for="csv">Client Questionnaire <span class="optional-note">(optional)</span></label>
         <div class="upload-zone" id="csv-zone">
           <div class="upload-icon">
             <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -947,7 +947,7 @@
             </svg>
           </div>
           <p class="upload-text"><strong>Choose CSV file(s)</strong> or drag them here</p>
-          <input type="file" id="csv" name="csv" accept=".csv" multiple required
+          <input type="file" id="csv" name="csv" accept=".csv" multiple
             aria-describedby="csv-error">
         </div>
         <a href="/template.csv" download class="template-link">Download sample questionnaire template</a>
@@ -1558,8 +1558,8 @@
       const csvFiles = document.getElementById("csv").files;
       const scopeVal = document.getElementById("scope").value.trim();
       const notesFiles = document.getElementById("notes").files;
-      if (!csvFiles.length || !scopeVal) return;
-      if (!csvValid) return;
+      if (!scopeVal) return;
+      if (csvFiles.length && !csvValid) return;
 
       currentSessionId = null;
       clearSessionExpiry();

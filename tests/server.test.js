@@ -78,14 +78,14 @@ describe("POST /generate", () => {
     expect(typeof res.body.markdown).toBe("string");
   });
 
-  it("returns 400 when CSV is missing", async () => {
+  it("succeeds when CSV is missing but scope is provided", async () => {
     const res = await request(app)
       .post("/generate")
       .set("Cookie", authCookie)
       .field("scope", "Test scope");
 
-    expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty("error");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("markdown");
   });
 
   it("returns 400 when scope is missing", async () => {

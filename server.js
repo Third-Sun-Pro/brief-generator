@@ -212,13 +212,13 @@ app.post(
       const csvFiles = req.files && req.files["csv"];
       const scopeText = req.body && req.body.scope;
 
-      if (!csvFiles || !csvFiles.length || !scopeText || !scopeText.trim()) {
+      if (!scopeText || !scopeText.trim()) {
         return res
           .status(400)
-          .json({ error: "At least one CSV file and a project scope are required." });
+          .json({ error: "A project scope is required." });
       }
 
-      const csvTexts = csvFiles.map((f) => f.buffer.toString("utf-8"));
+      const csvTexts = csvFiles ? csvFiles.map((f) => f.buffer.toString("utf-8")) : [];
       const noteFiles = buildNoteFiles(req.files && req.files["notes"]);
 
       let siteContext = null;
@@ -235,7 +235,7 @@ app.post(
         }
       }
 
-      log("info", "Generating brief", { reqId: req.id, csvCount: csvFiles.length, noteCount: noteFiles.length });
+      log("info", "Generating brief", { reqId: req.id, csvCount: csvTexts.length, noteCount: noteFiles.length });
       const { docxBuffer, markdownText, clientName } = await generateBrief(
         csvTexts,
         scopeText.trim(),
@@ -270,10 +270,10 @@ app.post(
     const csvFiles = req.files && req.files["csv"];
     const scopeText = req.body && req.body.scope;
 
-    if (!csvFiles || !csvFiles.length || !scopeText || !scopeText.trim()) {
+    if (!scopeText || !scopeText.trim()) {
       return res
         .status(400)
-        .json({ error: "At least one CSV file and a project scope are required." });
+        .json({ error: "A project scope is required." });
     }
 
     res.setHeader("Content-Type", "text/event-stream");
@@ -281,7 +281,7 @@ app.post(
     res.setHeader("Connection", "keep-alive");
 
     try {
-      const csvTexts = csvFiles.map((f) => f.buffer.toString("utf-8"));
+      const csvTexts = csvFiles ? csvFiles.map((f) => f.buffer.toString("utf-8")) : [];
       const noteFiles = buildNoteFiles(req.files && req.files["notes"]);
 
       let siteContext = null;
