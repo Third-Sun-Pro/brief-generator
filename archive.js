@@ -38,24 +38,40 @@ function addEntry({ clientName, markdown, docxBase64, source }) {
     createdAt: new Date().toISOString(),
   };
   entries.push(entry);
+  let dropped = 0;
   if (entries.length > MAX_ENTRIES) {
-    entries = entries.slice(entries.length - MAX_ENTRIES);
+    dropped = entries.length - MAX_ENTRIES;
+    entries = entries.slice(dropped);
   }
   writeArchive(entries);
-  return entry;
+  return { entry, dropped };
 }
 
 function listEntries() {
-  return readArchive().map(({ id, clientName, createdAt, source }) => ({
-    id,
-    clientName,
-    createdAt,
-    source,
-  }));
+  const entries = readArchive();
+  return {
+    entries: entries.map(({ id, clientName, createdAt, source }) => ({
+      id,
+      clientName,
+      createdAt,
+      source,
+    })),
+    total: entries.length,
+    limit: MAX_ENTRIES,
+  };
 }
 
 function getEntry(id) {
   return readArchive().find((e) => e.id === id) || null;
 }
 
-module.exports = { readArchive, writeArchive, addEntry, listEntries, getEntry };
+function deleteEntry(id) {
+  const entries = readArchive();
+  const idx = entries.findIndex((e) => e.id === id);
+  if (idx === -1) return false;
+  entries.splice(idx, 1);
+  writeArchive(entries);
+  return true;
+}
+
+module.exports = { readArchive, writeArchive, addEntry, listEntries, getEntry, deleteEntry };

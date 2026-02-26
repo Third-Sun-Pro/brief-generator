@@ -681,6 +681,50 @@
       margin-top: 1rem;
     }
 
+    .archive-capacity {
+      background: #fef3cd;
+      color: #856404;
+      font-size: 0.78rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+    }
+
+    .archive-search {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--cream-dark);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.82rem;
+      color: var(--brown);
+      background: #fff;
+      margin-bottom: 0.5rem;
+      box-sizing: border-box;
+    }
+
+    .archive-search:focus {
+      outline: none;
+      border-color: var(--green);
+    }
+
+    .archive-del-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.3rem;
+      border-radius: 6px;
+      color: #9a8a6e;
+      font-size: 0.75rem;
+      line-height: 1;
+      transition: all 0.2s ease;
+    }
+
+    .archive-del-btn:hover {
+      color: var(--pink);
+      background: #f2dce0;
+    }
+
     .archive-empty {
       text-align: center;
       color: #9a8a6e;
@@ -950,7 +994,11 @@
       <svg viewBox="0 0 24 24"><path d="M20 6H4V4h16v2zm-1 2H5c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h14c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-5 7H10v-2h4v2z"/></svg>
       Past Briefs
     </button>
-    <div id="archive-list" class="archive-list hidden"></div>
+    <div id="archive-panel" class="archive-list hidden">
+      <div id="archive-capacity" class="archive-capacity" hidden></div>
+      <input type="text" id="archive-search" class="archive-search" placeholder="Search by client name..." />
+      <div id="archive-entries"></div>
+    </div>
     <div id="version-nav" class="version-nav" hidden>
       <button type="button" id="version-browse" class="version-browse">&larr; Previous versions</button>
       <button type="button" id="version-prev" hidden>&larr; Prev</button>
@@ -1695,8 +1743,12 @@
     // Archive
     // -----------------------------------------------------------------------
     const archiveToggle = document.getElementById("archive-toggle");
-    const archiveListEl = document.getElementById("archive-list");
+    const archivePanel = document.getElementById("archive-panel");
+    const archiveEntriesEl = document.getElementById("archive-entries");
+    const archiveSearchEl = document.getElementById("archive-search");
+    const archiveCapacityEl = document.getElementById("archive-capacity");
     let archiveOpen = false;
+    let archiveData = [];
 
     function escapeHtml(str) {
       const div = document.createElement("div");
@@ -1746,55 +1798,98 @@
       }
     }
 
+    function renderArchiveEntries(entries) {
+      if (!entries.length) {
+        const query = archiveSearchEl.value.trim();
+        archiveEntriesEl.innerHTML = '<p class="archive-empty">' +
+          (query ? "No briefs matching \"" + escapeHtml(query) + "\"." : "No briefs generated yet.") + '</p>';
+        return;
+      }
+      archiveEntriesEl.innerHTML = entries.map((e) => {
+        const badgeClass = e.source === "revise" ? "badge-revise" : "badge-generate";
+        const badgeLabel = e.source === "revise" ? "Revised" : "Original";
+        return '<div class="archive-item">' +
+          '<div class="archive-item-info">' +
+            '<div class="archive-item-name">' + escapeHtml(e.clientName) + '</div>' +
+            '<div class="archive-item-meta">' +
+              '<span>' + formatDate(e.createdAt) + '</span>' +
+              '<span class="archive-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="archive-item-actions">' +
+            '<button class="archive-dl-btn archive-dl-docx" data-id="' + e.id + '" data-fmt="docx">Pages/Word</button>' +
+            '<button class="archive-dl-btn archive-dl-md" data-id="' + e.id + '" data-fmt="md">Markdown</button>' +
+            '<button class="archive-del-btn" data-id="' + e.id + '" data-name="' + escapeHtml(e.clientName) + '" title="Delete">&times;</button>' +
+          '</div>' +
+        '</div>';
+      }).join("");
+    }
+
+    function filterArchive() {
+      const query = archiveSearchEl.value.trim().toLowerCase();
+      const filtered = query
+        ? archiveData.filter((e) => e.clientName.toLowerCase().includes(query))
+        : archiveData;
+      renderArchiveEntries(filtered);
+    }
+
     async function loadArchive() {
-      archiveListEl.innerHTML = '<p class="archive-empty">Loading...</p>';
+      archiveEntriesEl.innerHTML = '<p class="archive-empty">Loading...</p>';
+      archiveCapacityEl.hidden = true;
       try {
         const res = await fetch("/archive");
         if (handle401(res)) return;
         if (!res.ok) throw new Error("Failed to load archive");
-        const entries = await res.json();
+        const data = await res.json();
+        const entries = data.entries || data;
 
-        if (!entries.length) {
-          archiveListEl.innerHTML = '<p class="archive-empty">No briefs generated yet.</p>';
-          return;
+        if (data.total >= data.limit) {
+          archiveCapacityEl.textContent = "Archive is full (" + data.total + "/" + data.limit + "). Oldest briefs will be removed when new ones are generated.";
+          archiveCapacityEl.hidden = false;
         }
 
         // Newest first
         entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-        archiveListEl.innerHTML = entries.map((e) => {
-          const badgeClass = e.source === "revise" ? "badge-revise" : "badge-generate";
-          const badgeLabel = e.source === "revise" ? "Revised" : "Original";
-          return '<div class="archive-item">' +
-            '<div class="archive-item-info">' +
-              '<div class="archive-item-name">' + escapeHtml(e.clientName) + '</div>' +
-              '<div class="archive-item-meta">' +
-                '<span>' + formatDate(e.createdAt) + '</span>' +
-                '<span class="archive-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
-              '</div>' +
-            '</div>' +
-            '<div class="archive-item-actions">' +
-              '<button class="archive-dl-btn archive-dl-docx" data-id="' + e.id + '" data-fmt="docx">Pages/Word</button>' +
-              '<button class="archive-dl-btn archive-dl-md" data-id="' + e.id + '" data-fmt="md">Markdown</button>' +
-            '</div>' +
-          '</div>';
-        }).join("");
+        archiveData = entries;
+        filterArchive();
       } catch (err) {
-        archiveListEl.innerHTML = '<p class="archive-empty">' + escapeHtml(err.message) + '</p>';
+        archiveEntriesEl.innerHTML = '<p class="archive-empty">' + escapeHtml(err.message) + '</p>';
       }
     }
+
+    archiveSearchEl.addEventListener("input", filterArchive);
 
     archiveToggle.addEventListener("click", () => {
       archiveOpen = !archiveOpen;
       if (archiveOpen) {
-        archiveListEl.classList.remove("hidden");
+        archivePanel.classList.remove("hidden");
         loadArchive();
       } else {
-        archiveListEl.classList.add("hidden");
+        archivePanel.classList.add("hidden");
+        archiveSearchEl.value = "";
       }
     });
 
-    archiveListEl.addEventListener("click", async (e) => {
+    archivePanel.addEventListener("click", async (e) => {
+      // Handle delete
+      const delBtn = e.target.closest(".archive-del-btn");
+      if (delBtn) {
+        const name = delBtn.dataset.name;
+        if (!confirm("Delete the brief for \"" + name + "\"? This cannot be undone.")) return;
+        delBtn.disabled = true;
+        try {
+          const res = await fetch("/archive/" + delBtn.dataset.id, { method: "DELETE" });
+          if (handle401(res)) return;
+          if (!res.ok) throw new Error("Failed to delete");
+          loadArchive();
+        } catch (err) {
+          showError(err.message, null);
+          delBtn.disabled = false;
+        }
+        return;
+      }
+
+      // Handle download
       const btn = e.target.closest(".archive-dl-btn");
       if (!btn) return;
       btn.disabled = true;

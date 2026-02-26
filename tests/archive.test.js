@@ -37,7 +37,7 @@ describe("archive.js", () => {
 
   it("addEntry creates dir and file, generates id and createdAt", () => {
     const { addEntry, readArchive } = loadArchive();
-    const entry = addEntry({
+    const { entry, dropped } = addEntry({
       clientName: "Acme Corp",
       markdown: "# Brief",
       docxBase64: "ZmFrZQ==",
@@ -48,6 +48,7 @@ describe("archive.js", () => {
     expect(entry.createdAt).toBeDefined();
     expect(entry.clientName).toBe("Acme Corp");
     expect(entry.source).toBe("generate");
+    expect(dropped).toBe(0);
 
     const entries = readArchive();
     expect(entries).toHaveLength(1);
@@ -67,19 +68,21 @@ describe("archive.js", () => {
     const { addEntry, listEntries } = loadArchive();
     addEntry({ clientName: "Acme", markdown: "# Long brief", docxBase64: "bigdata", source: "generate" });
 
-    const list = listEntries();
-    expect(list).toHaveLength(1);
-    expect(list[0]).toHaveProperty("id");
-    expect(list[0]).toHaveProperty("clientName", "Acme");
-    expect(list[0]).toHaveProperty("createdAt");
-    expect(list[0]).toHaveProperty("source", "generate");
-    expect(list[0]).not.toHaveProperty("markdown");
-    expect(list[0]).not.toHaveProperty("docxBase64");
+    const result = listEntries();
+    expect(result.entries).toHaveLength(1);
+    expect(result.total).toBe(1);
+    expect(result.limit).toBe(50);
+    expect(result.entries[0]).toHaveProperty("id");
+    expect(result.entries[0]).toHaveProperty("clientName", "Acme");
+    expect(result.entries[0]).toHaveProperty("createdAt");
+    expect(result.entries[0]).toHaveProperty("source", "generate");
+    expect(result.entries[0]).not.toHaveProperty("markdown");
+    expect(result.entries[0]).not.toHaveProperty("docxBase64");
   });
 
   it("getEntry returns full entry by id", () => {
     const { addEntry, getEntry } = loadArchive();
-    const entry = addEntry({ clientName: "Test", markdown: "md", docxBase64: "b64", source: "revise" });
+    const { entry } = addEntry({ clientName: "Test", markdown: "md", docxBase64: "b64", source: "revise" });
 
     const found = getEntry(entry.id);
     expect(found).not.toBeNull();

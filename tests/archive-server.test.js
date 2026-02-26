@@ -110,12 +110,14 @@ describe("Archive endpoints", () => {
     expect(res.status).toBe(401);
   });
 
-  it("GET /archive returns empty array when no briefs exist", async () => {
+  it("GET /archive returns empty entries when no briefs exist", async () => {
     const res = await request(app)
       .get("/archive")
       .set("Cookie", authCookie);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body.entries).toEqual([]);
+    expect(res.body.total).toBe(0);
+    expect(res.body.limit).toBe(50);
   });
 
   it("GET /archive/:id returns 404 for unknown id", async () => {
@@ -139,9 +141,9 @@ describe("Archive endpoints", () => {
       .get("/archive")
       .set("Cookie", authCookie);
 
-    expect(archiveRes.body).toHaveLength(1);
-    expect(archiveRes.body[0].clientName).toBe("Acme Corp");
-    expect(archiveRes.body[0].source).toBe("generate");
+    expect(archiveRes.body.entries).toHaveLength(1);
+    expect(archiveRes.body.entries[0].clientName).toBe("Acme Corp");
+    expect(archiveRes.body.entries[0].source).toBe("generate");
   });
 
   it("auto-archives on /revise-stream with source 'revise'", async () => {
@@ -165,8 +167,8 @@ describe("Archive endpoints", () => {
       .set("Cookie", authCookie);
 
     // Should have 2 entries: one generate, one revise
-    expect(archiveRes.body).toHaveLength(2);
-    const sources = archiveRes.body.map((e) => e.source).sort();
+    expect(archiveRes.body.entries).toHaveLength(2);
+    const sources = archiveRes.body.entries.map((e) => e.source).sort();
     expect(sources).toEqual(["generate", "revise"]);
   });
 
@@ -182,7 +184,7 @@ describe("Archive endpoints", () => {
       .get("/archive")
       .set("Cookie", authCookie);
 
-    const entryId = archiveRes.body[0].id;
+    const entryId = archiveRes.body.entries[0].id;
 
     const entryRes = await request(app)
       .get("/archive/" + entryId)

@@ -7,7 +7,7 @@ const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
 const { generateBrief, generateBriefStream, reviseBriefStream, generateCommonalities } = require("./generate");
 const { scrapeNavigation } = require("./scrape");
-const { addEntry, listEntries, getEntry } = require("./archive");
+const { addEntry, listEntries, getEntry, deleteEntry } = require("./archive");
 
 // ---------------------------------------------------------------------------
 // Structured logger
@@ -332,8 +332,11 @@ app.post(
 
       let archiveWarning = null;
       try {
-        addEntry({ clientName: clientName || "Untitled", markdown: markdownText,
+        const { dropped } = addEntry({ clientName: clientName || "Untitled", markdown: markdownText,
           docxBase64: docxBuffer.toString("base64"), source: "generate" });
+        if (dropped > 0) {
+          archiveWarning = `Archive is full (50 max). ${dropped} oldest brief${dropped > 1 ? "s were" : " was"} removed to make room.`;
+        }
       } catch (archiveErr) {
         log("error", "Archive save failed", { reqId: req.id, error: archiveErr.message });
         archiveWarning = "Brief could not be saved to the archive. Please download it now.";
@@ -401,8 +404,11 @@ app.post("/revise-stream", requireAuth, apiLimiter, async (req, res) => {
 
     let archiveWarning = null;
     try {
-      addEntry({ clientName: clientName || "Untitled", markdown: markdownText,
+      const { dropped } = addEntry({ clientName: clientName || "Untitled", markdown: markdownText,
         docxBase64: docxBuffer.toString("base64"), source: "revise" });
+      if (dropped > 0) {
+        archiveWarning = `Archive is full (50 max). ${dropped} oldest brief${dropped > 1 ? "s were" : " was"} removed to make room.`;
+      }
     } catch (archiveErr) {
       log("error", "Archive save failed", { reqId: req.id, error: archiveErr.message });
       archiveWarning = "Brief could not be saved to the archive. Please download it now.";
@@ -439,6 +445,12 @@ app.get("/archive/:id", requireAuth, (req, res) => {
   const entry = getEntry(req.params.id);
   if (!entry) return res.status(404).json({ error: "Entry not found." });
   res.json(entry);
+});
+
+app.delete("/archive/:id", requireAuth, (req, res) => {
+  const deleted = deleteEntry(req.params.id);
+  if (!deleted) return res.status(404).json({ error: "Entry not found." });
+  res.json({ ok: true });
 });
 
 function cleanErrorMessage(err) {
