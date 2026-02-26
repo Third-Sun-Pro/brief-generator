@@ -564,6 +564,30 @@
       border: 1px solid #e8d0c4;
     }
 
+    .multi-csv-hint {
+      background: #f0f1e8;
+      color: var(--green);
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 0.45rem 0.75rem;
+      border-radius: 8px;
+      margin-top: 0.5rem;
+      border: 1px solid #d4d8b8;
+    }
+
+    .template-link {
+      display: inline-block;
+      font-size: 0.78rem;
+      color: var(--green);
+      margin-top: 0.35rem;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .template-link:hover {
+      text-decoration: underline;
+    }
+
     .commonalities-section {
       margin-top: 1.5rem;
     }
@@ -925,6 +949,10 @@
           <p class="upload-text"><strong>Choose CSV file(s)</strong> or drag them here</p>
           <input type="file" id="csv" name="csv" accept=".csv" multiple required
             aria-describedby="csv-error">
+        </div>
+        <a href="/template.csv" download class="template-link">Download sample questionnaire template</a>
+        <div id="multi-csv-hint" class="multi-csv-hint" hidden>
+          Multiple questionnaires detected — a respondent commonalities analysis will be generated alongside the brief.
         </div>
       </div>
 
@@ -1321,6 +1349,7 @@
       currentVersionIndex = -1;
       versionNav.hidden = true;
       resetCommonalities();
+      multiCsvHint.hidden = true;
       setFormDisabled(false);
     });
 
@@ -1490,10 +1519,12 @@
     });
 
     // File input display — CSV (with validation)
+    const multiCsvHint = document.getElementById("multi-csv-hint");
     document.getElementById("csv").addEventListener("change", async function () {
       const zone = this.closest(".upload-zone");
       clearUploadError(zone);
       csvValid = false;
+      multiCsvHint.hidden = true;
 
       if (!this.files.length) return;
 
@@ -1513,6 +1544,7 @@
       csvValid = true;
       zone.classList.add("has-file");
       zone.querySelector(".upload-icon").hidden = true;
+      if (files.length >= 2) multiCsvHint.hidden = false;
       const names = files.map((f) => f.name);
       const label = names.length === 1 ? names[0] : `${names.length} files selected`;
       zone.querySelector(".upload-text").innerHTML =
