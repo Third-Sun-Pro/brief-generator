@@ -25,7 +25,7 @@ function writeArchive(entries) {
   fs.writeFileSync(ARCHIVE_PATH, JSON.stringify(entries, null, 2));
 }
 
-const MAX_ENTRIES = 50;
+const MAX_ENTRIES = 100;
 
 function addEntry({ clientName, markdown, docxBase64, source }) {
   let entries = readArchive();
@@ -35,13 +35,20 @@ function addEntry({ clientName, markdown, docxBase64, source }) {
     markdown,
     docxBase64,
     source,
+    pinned: false,
     createdAt: new Date().toISOString(),
   };
   entries.push(entry);
   let dropped = 0;
   if (entries.length > MAX_ENTRIES) {
-    dropped = entries.length - MAX_ENTRIES;
-    entries = entries.slice(dropped);
+    // Only drop unpinned entries, oldest first
+    const unpinned = entries.filter(e => !e.pinned);
+    const toDrop = entries.length - MAX_ENTRIES;
+    if (unpinned.length >= toDrop) {
+      const dropIds = new Set(unpinned.slice(0, toDrop).map(e => e.id));
+      entries = entries.filter(e => !dropIds.has(e.id));
+      dropped = toDrop;
+    }
   }
   writeArchive(entries);
   return { entry, dropped };
@@ -50,11 +57,12 @@ function addEntry({ clientName, markdown, docxBase64, source }) {
 function listEntries() {
   const entries = readArchive();
   return {
-    entries: entries.map(({ id, clientName, createdAt, source }) => ({
+    entries: entries.map(({ id, clientName, createdAt, source, pinned }) => ({
       id,
       clientName,
       createdAt,
       source,
+      pinned: !!pinned,
     })),
     total: entries.length,
     limit: MAX_ENTRIES,
@@ -74,4 +82,13 @@ function deleteEntry(id) {
   return true;
 }
 
-module.exports = { readArchive, writeArchive, addEntry, listEntries, getEntry, deleteEntry };
+function togglePin(id) {
+  const entries = readArchive();
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) return null;
+  entry.pinned = !entry.pinned;
+  writeArchive(entries);
+  return entry.pinned;
+}
+
+module.exports = { readArchive, writeArchive, addEntry, listEntries, getEntry, deleteEntry, togglePin };

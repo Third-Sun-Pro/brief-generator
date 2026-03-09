@@ -71,11 +71,12 @@ describe("archive.js", () => {
     const result = listEntries();
     expect(result.entries).toHaveLength(1);
     expect(result.total).toBe(1);
-    expect(result.limit).toBe(50);
+    expect(result.limit).toBe(100);
     expect(result.entries[0]).toHaveProperty("id");
     expect(result.entries[0]).toHaveProperty("clientName", "Acme");
     expect(result.entries[0]).toHaveProperty("createdAt");
     expect(result.entries[0]).toHaveProperty("source", "generate");
+    expect(result.entries[0]).toHaveProperty("pinned", false);
     expect(result.entries[0]).not.toHaveProperty("markdown");
     expect(result.entries[0]).not.toHaveProperty("docxBase64");
   });
@@ -96,14 +97,55 @@ describe("archive.js", () => {
     expect(getEntry("nonexistent-id")).toBeNull();
   });
 
-  it("addEntry caps at 50 entries, dropping oldest", () => {
-    const { addEntry, readArchive } = loadArchive();
-    for (let i = 0; i < 55; i++) {
+  it("addEntry caps at 100 entries, dropping oldest unpinned", () => {
+    const { addEntry, readArchive, togglePin } = loadArchive();
+    for (let i = 0; i < 105; i++) {
       addEntry({ clientName: `Client ${i}`, markdown: "m", docxBase64: "d", source: "generate" });
     }
     const entries = readArchive();
-    expect(entries).toHaveLength(50);
+    expect(entries).toHaveLength(100);
     expect(entries[0].clientName).toBe("Client 5");
-    expect(entries[49].clientName).toBe("Client 54");
+    expect(entries[99].clientName).toBe("Client 104");
+  });
+
+  it("pinned entries are protected from FIFO drop", () => {
+    const { addEntry, readArchive, togglePin } = loadArchive();
+    // Add 100 entries to fill the archive
+    for (let i = 0; i < 100; i++) {
+      addEntry({ clientName: `Client ${i}`, markdown: "m", docxBase64: "d", source: "generate" });
+    }
+    // Pin the very first entry
+    const entries = readArchive();
+    togglePin(entries[0].id);
+
+    // Add 5 more — should drop unpinned entries but keep the pinned one
+    for (let i = 100; i < 105; i++) {
+      addEntry({ clientName: `Client ${i}`, markdown: "m", docxBase64: "d", source: "generate" });
+    }
+    const final = readArchive();
+    expect(final).toHaveLength(100);
+    // Pinned entry should still be there
+    expect(final.some(e => e.clientName === "Client 0" && e.pinned)).toBe(true);
+    // Oldest unpinned should be gone
+    expect(final.some(e => e.clientName === "Client 1")).toBe(false);
+  });
+
+  it("togglePin toggles pinned status", () => {
+    const { addEntry, readArchive, togglePin } = loadArchive();
+    const { entry } = addEntry({ clientName: "Test", markdown: "m", docxBase64: "d", source: "generate" });
+    expect(entry.pinned).toBe(false);
+
+    const pinned = togglePin(entry.id);
+    expect(pinned).toBe(true);
+    expect(readArchive()[0].pinned).toBe(true);
+
+    const unpinned = togglePin(entry.id);
+    expect(unpinned).toBe(false);
+    expect(readArchive()[0].pinned).toBe(false);
+  });
+
+  it("togglePin returns null for unknown id", () => {
+    const { togglePin } = loadArchive();
+    expect(togglePin("nonexistent")).toBeNull();
   });
 });

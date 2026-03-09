@@ -117,7 +117,7 @@ describe("Archive endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.body.entries).toEqual([]);
     expect(res.body.total).toBe(0);
-    expect(res.body.limit).toBe(50);
+    expect(res.body.limit).toBe(100);
   });
 
   it("GET /archive/:id returns 404 for unknown id", async () => {
@@ -195,6 +195,48 @@ describe("Archive endpoints", () => {
     expect(entryRes.body.markdown).toBeDefined();
     expect(entryRes.body.docxBase64).toBeDefined();
     expect(entryRes.body.clientName).toBe("Acme Corp");
+  });
+
+  it("PATCH /archive/:id/pin toggles pinned status", async () => {
+    // Generate to create an archive entry
+    await request(app)
+      .post("/generate-stream")
+      .set("Cookie", authCookie)
+      .attach("csv", csvBuffer, "test.csv")
+      .field("scope", "Test project scope");
+
+    const archiveRes = await request(app)
+      .get("/archive")
+      .set("Cookie", authCookie);
+
+    const entryId = archiveRes.body.entries[0].id;
+    expect(archiveRes.body.entries[0].pinned).toBe(false);
+
+    // Pin
+    const pinRes = await request(app)
+      .patch("/archive/" + entryId + "/pin")
+      .set("Cookie", authCookie);
+    expect(pinRes.status).toBe(200);
+    expect(pinRes.body.pinned).toBe(true);
+
+    // Verify in listing
+    const afterPin = await request(app)
+      .get("/archive")
+      .set("Cookie", authCookie);
+    expect(afterPin.body.entries[0].pinned).toBe(true);
+
+    // Unpin
+    const unpinRes = await request(app)
+      .patch("/archive/" + entryId + "/pin")
+      .set("Cookie", authCookie);
+    expect(unpinRes.body.pinned).toBe(false);
+  });
+
+  it("PATCH /archive/:id/pin returns 404 for unknown id", async () => {
+    const res = await request(app)
+      .patch("/archive/nonexistent-id/pin")
+      .set("Cookie", authCookie);
+    expect(res.status).toBe(404);
   });
 
   it("archive failure does not break generation", async () => {

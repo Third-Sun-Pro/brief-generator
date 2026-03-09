@@ -7,7 +7,7 @@ const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
 const { generateBrief, generateBriefStream, reviseBriefStream, generateCommonalities } = require("./generate");
 const { scrapeNavigation } = require("./scrape");
-const { addEntry, listEntries, getEntry, deleteEntry } = require("./archive");
+const { addEntry, listEntries, getEntry, deleteEntry, togglePin } = require("./archive");
 
 // ---------------------------------------------------------------------------
 // Structured logger
@@ -451,6 +451,12 @@ app.delete("/archive/:id", requireAuth, (req, res) => {
   const deleted = deleteEntry(req.params.id);
   if (!deleted) return res.status(404).json({ error: "Entry not found." });
   res.json({ ok: true });
+});
+
+app.patch("/archive/:id/pin", requireAuth, (req, res) => {
+  const pinned = togglePin(req.params.id);
+  if (pinned === null) return res.status(404).json({ error: "Entry not found." });
+  res.json({ ok: true, pinned });
 });
 
 function cleanErrorMessage(err) {

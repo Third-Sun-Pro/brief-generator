@@ -842,6 +842,119 @@
       color: var(--brown);
     }
 
+    .archive-group {
+      border: 1px solid var(--cream-dark);
+      border-radius: 10px;
+      margin-bottom: 0.5rem;
+      overflow: hidden;
+    }
+
+    .archive-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 0.75rem;
+      background: var(--cream);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s ease;
+    }
+
+    .archive-group-header:hover {
+      background: var(--cream-dark);
+    }
+
+    .archive-group-left {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .archive-group-chevron {
+      width: 14px;
+      height: 14px;
+      fill: #9a8a6e;
+      transition: transform 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .archive-group.open .archive-group-chevron {
+      transform: rotate(90deg);
+    }
+
+    .archive-group-name {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--brown);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .archive-group-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+      margin-left: 0.5rem;
+    }
+
+    .archive-group-count {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #9a8a6e;
+      background: #fff;
+      padding: 0.1rem 0.45rem;
+      border-radius: 10px;
+    }
+
+    .archive-group-date {
+      font-size: 0.7rem;
+      color: #9a8a6e;
+    }
+
+    .archive-group-entries {
+      display: none;
+    }
+
+    .archive-group.open .archive-group-entries {
+      display: block;
+    }
+
+    .archive-group-entries .archive-item {
+      padding: 0.5rem 0.75rem;
+    }
+
+    .archive-group-entries .archive-item:last-child {
+      border-bottom: none;
+    }
+
+    .archive-group-entries .archive-item-name {
+      display: none;
+    }
+
+    .archive-pin-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.25rem;
+      border-radius: 4px;
+      transition: all 0.15s ease;
+      line-height: 1;
+      font-size: 0.85rem;
+      color: #ccc;
+    }
+
+    .archive-pin-btn:hover {
+      color: var(--gold);
+    }
+
+    .archive-pin-btn.pinned {
+      color: var(--gold);
+    }
+
     .hidden { display: none !important; }
 
     .login-overlay {
@@ -1830,6 +1943,30 @@
       }
     }
 
+    function renderArchiveItem(e) {
+      const badgeClass = e.source === "revise" ? "badge-revise" : "badge-generate";
+      const badgeLabel = e.source === "revise" ? "Revised" : "Original";
+      const pinClass = e.pinned ? "pinned" : "";
+      const pinLabel = e.pinned ? "Unpin" : "Pin";
+      return '<div class="archive-item">' +
+        '<div class="archive-item-info">' +
+          '<div class="archive-item-name">' + escapeHtml(e.clientName) + '</div>' +
+          '<div class="archive-item-meta">' +
+            '<span>' + formatDate(e.createdAt) + '</span>' +
+            '<span class="archive-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="archive-item-actions">' +
+          '<button class="archive-pin-btn ' + pinClass + '" data-id="' + e.id + '" title="' + pinLabel + '">' +
+            (e.pinned ? '&#9733;' : '&#9734;') +
+          '</button>' +
+          '<button class="archive-dl-btn archive-dl-docx" data-id="' + e.id + '" data-fmt="docx">Pages/Word</button>' +
+          '<button class="archive-dl-btn archive-dl-md" data-id="' + e.id + '" data-fmt="md">Markdown</button>' +
+          '<button class="archive-del-btn" data-id="' + e.id + '" data-name="' + escapeHtml(e.clientName) + '" title="Delete">&times;</button>' +
+        '</div>' +
+      '</div>';
+    }
+
     function renderArchiveEntries(entries) {
       if (!entries.length) {
         const query = archiveSearchEl.value.trim();
@@ -1837,24 +1974,54 @@
           (query ? "No briefs matching \"" + escapeHtml(query) + "\"." : "No briefs generated yet.") + '</p>';
         return;
       }
-      archiveEntriesEl.innerHTML = entries.map((e) => {
-        const badgeClass = e.source === "revise" ? "badge-revise" : "badge-generate";
-        const badgeLabel = e.source === "revise" ? "Revised" : "Original";
-        return '<div class="archive-item">' +
-          '<div class="archive-item-info">' +
-            '<div class="archive-item-name">' + escapeHtml(e.clientName) + '</div>' +
-            '<div class="archive-item-meta">' +
-              '<span>' + formatDate(e.createdAt) + '</span>' +
-              '<span class="archive-badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+
+      // Group by client name
+      const groups = new Map();
+      for (const e of entries) {
+        const key = e.clientName || "Untitled";
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(e);
+      }
+
+      // Sort groups: pinned clients first, then by most recent brief
+      const sorted = [...groups.entries()].sort((a, b) => {
+        const aPinned = a[1].some(e => e.pinned);
+        const bPinned = b[1].some(e => e.pinned);
+        if (aPinned !== bPinned) return bPinned ? 1 : -1;
+        return new Date(b[1][0].createdAt) - new Date(a[1][0].createdAt);
+      });
+
+      // If only one group, auto-open it
+      const autoOpen = sorted.length === 1;
+
+      archiveEntriesEl.innerHTML = sorted.map(([name, items]) => {
+        const latest = items[0]; // already sorted newest first
+        const hasPinned = items.some(e => e.pinned);
+        const openClass = autoOpen ? " open" : "";
+        return '<div class="archive-group' + openClass + '" data-client="' + escapeHtml(name) + '">' +
+          '<div class="archive-group-header">' +
+            '<div class="archive-group-left">' +
+              '<svg class="archive-group-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>' +
+              (hasPinned ? '<span style="color:var(--gold);font-size:0.75rem;">&#9733;</span>' : '') +
+              '<span class="archive-group-name">' + escapeHtml(name) + '</span>' +
+            '</div>' +
+            '<div class="archive-group-meta">' +
+              '<span class="archive-group-date">' + formatDate(latest.createdAt) + '</span>' +
+              '<span class="archive-group-count">' + items.length + '</span>' +
             '</div>' +
           '</div>' +
-          '<div class="archive-item-actions">' +
-            '<button class="archive-dl-btn archive-dl-docx" data-id="' + e.id + '" data-fmt="docx">Pages/Word</button>' +
-            '<button class="archive-dl-btn archive-dl-md" data-id="' + e.id + '" data-fmt="md">Markdown</button>' +
-            '<button class="archive-del-btn" data-id="' + e.id + '" data-name="' + escapeHtml(e.clientName) + '" title="Delete">&times;</button>' +
+          '<div class="archive-group-entries">' +
+            items.map(renderArchiveItem).join("") +
           '</div>' +
         '</div>';
       }).join("");
+
+      // Attach group toggle listeners
+      archiveEntriesEl.querySelectorAll(".archive-group-header").forEach(header => {
+        header.addEventListener("click", () => {
+          header.parentElement.classList.toggle("open");
+        });
+      });
     }
 
     function filterArchive() {
@@ -1903,9 +2070,27 @@
     });
 
     archivePanel.addEventListener("click", async (e) => {
+      // Handle pin/unpin
+      const pinBtn = e.target.closest(".archive-pin-btn");
+      if (pinBtn) {
+        e.stopPropagation();
+        pinBtn.disabled = true;
+        try {
+          const res = await fetch("/archive/" + pinBtn.dataset.id + "/pin", { method: "PATCH" });
+          if (handle401(res)) return;
+          if (!res.ok) throw new Error("Failed to update pin");
+          loadArchive();
+        } catch (err) {
+          showError(err.message, null);
+          pinBtn.disabled = false;
+        }
+        return;
+      }
+
       // Handle delete
       const delBtn = e.target.closest(".archive-del-btn");
       if (delBtn) {
+        e.stopPropagation();
         const name = delBtn.dataset.name;
         if (!confirm("Delete the brief for \"" + name + "\"? This cannot be undone.")) return;
         delBtn.disabled = true;
@@ -1924,6 +2109,7 @@
       // Handle download
       const btn = e.target.closest(".archive-dl-btn");
       if (!btn) return;
+      e.stopPropagation();
       btn.disabled = true;
       btn.textContent = "...";
       try {
