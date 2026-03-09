@@ -4,7 +4,7 @@ AI-powered creative brief & site plan generator for Third Sun Productions, a web
 
 ## What It Does
 
-Takes client discovery questionnaires (CSVs) + project scope → generates professional Creative Brief & Site Plan documents using Claude AI. Supports multi-respondent consensus analysis, decision-maker weighting, revision workflow, and archiving.
+Takes client discovery questionnaires (optional CSVs) + project scope → generates professional Creative Brief & Site Plan documents using Claude AI. Supports multi-respondent consensus analysis, decision-maker weighting, revision workflow, and archiving.
 
 ## Tech Stack
 
@@ -14,8 +14,9 @@ Node.js + Express 5, Anthropic SDK, vanilla HTML/CSS/JS frontend. Tests with Vit
 
 ```bash
 node server.js          # Start server on port 3000
-npm test                # Run tests
+npm test                # Run all tests (8 test files)
 npm run test:watch      # Tests in watch mode
+npm run test:eval       # Run eval tests only (requires RUN_EVAL=1)
 ```
 
 ## Environment Variables (.env)

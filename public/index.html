@@ -1873,7 +1873,7 @@
         if (handle401(res)) return;
         if (!res.ok) throw new Error("Failed to load archive");
         const data = await res.json();
-        const entries = data.entries || data;
+        const entries = data.entries || [];
 
         if (data.total >= data.limit) {
           archiveCapacityEl.textContent = "Archive is full (" + data.total + "/" + data.limit + "). Oldest briefs will be removed when new ones are generated.";

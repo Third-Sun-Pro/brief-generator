@@ -302,7 +302,7 @@ app.post(
         res.write(`data: ${JSON.stringify({ scrapeWarning })}\n\n`);
       }
 
-      log("info", "Streaming brief", { reqId: req.id, csvCount: csvFiles.length, noteCount: noteFiles.length });
+      log("info", "Streaming brief", { reqId: req.id, csvCount: csvTexts.length, noteCount: noteFiles.length });
 
       // Start commonalities analysis in parallel when multiple CSVs
       let commonalitiesPromise = null;
