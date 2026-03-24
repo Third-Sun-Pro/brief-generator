@@ -1180,6 +1180,27 @@
       } catch (_) { /* show login by default */ }
     })();
 
+    // Hub integration — read URL params from Client Hub
+    const hubParams = new URLSearchParams(window.location.search);
+    const hubClientId = hubParams.get("hubClient");
+    const hubClientName = hubParams.get("clientName");
+    const HUB_URL = "https://hub.tsapp.us";
+
+    async function saveToHub(briefData) {
+      if (!hubClientId) return;
+      try {
+        await fetch(`${HUB_URL}/api/hub/save/${hubClientId}/brief`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientName: briefData.clientName,
+            markdown: briefData.markdown,
+            createdAt: new Date().toISOString(),
+          }),
+        });
+      } catch (_) { /* hub may not be running — fail silently */ }
+    }
+
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       loginBtn.disabled = true;
@@ -1753,6 +1774,7 @@
               reviseBtn.disabled = false;
               if (json.sessionTtl) startSessionExpiry(json.sessionTtl);
               if (json.archiveWarning) { warningEl.textContent = json.archiveWarning; warningEl.hidden = false; }
+              saveToHub(json);
               if (json.commonalities) {
                 currentCommonalities = json.commonalities;
                 commonalitiesContent.innerHTML = DOMPurify.sanitize(marked.parse(json.commonalities.markdown));
@@ -1861,6 +1883,7 @@
               feedbackEl.value = "";
               if (json.sessionTtl) startSessionExpiry(json.sessionTtl);
               if (json.archiveWarning) { warningEl.textContent = json.archiveWarning; warningEl.hidden = false; }
+              saveToHub(json);
               continue;
             }
 
