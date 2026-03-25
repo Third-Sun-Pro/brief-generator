@@ -28,6 +28,9 @@ for (const key of REQUIRED_ENV) {
     process.exit(1);
   }
 }
+if (!process.env.ARCHIVE_DIR) {
+  log("warn", "ARCHIVE_DIR not set — archive will use ./data/ which may not persist across deploys. Set ARCHIVE_DIR to a path outside the repo for persistence.");
+}
 
 const app = express();
 const upload = multer({
