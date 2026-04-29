@@ -57,5 +57,5 @@ npm run test:eval       # Run eval tests only (requires RUN_EVAL=1)
 
 ## Git
 
-- Remote: github.com/Third-Sun-Pro/brief-generator (private)
+- Remote: github.com/Third-Sun-Pro/brief-generator (public — required for scheduled remote agents)
 - .env is gitignored (was previously tracked, fixed Feb 2026)
